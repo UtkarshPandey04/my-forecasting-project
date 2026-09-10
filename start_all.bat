@@ -10,11 +10,14 @@ set ROOT_DIR=%~dp0
 cd /d "%ROOT_DIR%"
 
 echo [1/3] Checking Backend virtual environment...
-if not exist "backend\venv" (
+if not exist "backend\venv\Scripts\python.exe" (
     echo Creating Python virtual environment...
-    python -m venv backend\venv
+    py -3.12 -m venv backend\venv 2>nul
+    if not exist "backend\venv\Scripts\python.exe" (
+        python -m venv backend\venv
+    )
     call backend\venv\Scripts\activate.bat
-    pip install -r backend\requirements.txt -q
+    python -m pip install -r backend\requirements.txt
 )
 
 echo [2/3] Checking Frontend node_modules...

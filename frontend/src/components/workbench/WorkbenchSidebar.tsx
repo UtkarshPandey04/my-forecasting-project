@@ -10,6 +10,8 @@ import {
   BarChart3,
   Database,
   FileText,
+  Siren,
+  Megaphone,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -22,7 +24,9 @@ export type WorkbenchView =
   | 'what-if'
   | 'evaluation'
   | 'datasources'
-  | 'research';
+  | 'research'
+  | 'incident-command'
+  | 'response-console';
 
 interface WorkbenchSidebarProps {
   currentView: WorkbenchView;
@@ -40,6 +44,8 @@ const NAV_ITEMS: { id: WorkbenchView; label: string; icon: React.ElementType }[]
   { id: 'evaluation', label: 'Model Evaluation', icon: BarChart3 },
   { id: 'datasources', label: 'Data Sources', icon: Database },
   { id: 'research', label: 'Research Docs', icon: FileText },
+  { id: 'incident-command', label: 'Incident Command', icon: Siren },
+  { id: 'response-console', label: 'Response Console', icon: Megaphone },
 ];
 
 export default function WorkbenchSidebar({

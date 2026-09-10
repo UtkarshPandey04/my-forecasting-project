@@ -274,6 +274,17 @@ export interface ScenarioResponse {
   assumptions: string[];
   disclaimer: string;
   points: ScenarioPoint[];
+  live_context?: {
+    source?: string;
+    mode?: string;
+    timestamp?: string;
+    aqi?: number | null;
+    pm25?: number | null;
+    temperature?: number | null;
+    humidity?: number | null;
+    wind_speed?: number | null;
+    wind_direction?: number | null;
+  };
 }
 
 export interface PresetScenario {
@@ -333,5 +344,61 @@ export interface WRFChemStatus {
   available_files: string[];
   default_file: string;
   status: string;
+}
+
+export interface DisasterHazard {
+  id: string;
+  name: string;
+  score: number;
+  level: 'low' | 'moderate' | 'high' | 'very_high';
+  evidence: string[];
+  recommendation: string;
+  action_id: string;
+}
+
+export interface DisasterZone {
+  id: string;
+  name: string;
+  hazard: string;
+  score: number;
+  level: string;
+  x_pct: number;
+  y_pct: number;
+}
+
+export interface DisasterFirePoint {
+  id: string;
+  latitude: number;
+  longitude: number;
+  frp: number;
+  confidence: string;
+}
+
+export interface DisasterRiskResponse {
+  generated_at: string;
+  mode: string;
+  overall_score: number;
+  overall_level: string;
+  primary_hazard: string;
+  headline: string;
+  meteorology: {
+    temperature: number | null;
+    humidity: number | null;
+    wind_speed: number | null;
+    wind_direction: number | null;
+    precipitation: number | null;
+    precip_24h: number | null;
+    boundary_layer_height: number | null;
+  };
+  air_quality: {
+    max_aqi: number | null;
+    pm25: number | null;
+    station_id: string | null;
+    station_name: string | null;
+  };
+  fires: { count: number; total_frp: number; points?: DisasterFirePoint[] };
+  hazards: DisasterHazard[];
+  zones: DisasterZone[];
+  outlook: { hour_offset: number; flood: number; heat: number | null; label: string }[];
 }
 

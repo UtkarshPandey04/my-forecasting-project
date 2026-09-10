@@ -14,7 +14,8 @@ import {
   PresetScenario,
   ScenarioResponse,
   BlendedForecastResponse,
-  WRFChemStatus
+  WRFChemStatus,
+  DisasterRiskResponse
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -41,6 +42,24 @@ async function fetchPostAPI<T>(endpoint: string, body: any): Promise<T> {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
   return res.json();
+}
+
+export interface ResponseActionRequest {
+  action_type: string;
+  stakeholder: string;
+  station_id: string;
+  severity: string;
+  message: string;
+  source?: string;
+}
+
+export interface MitigationPartner {
+  id: string;
+  name: string;
+  type: string;
+  region: string;
+  service: string;
+  contact: string;
 }
 
 export const api = {
@@ -77,4 +96,8 @@ export const api = {
   }) => fetchPostAPI<ScenarioResponse>('/api/v1/scenarios/simulate', params),
   getBlendedForecast: (stationId: string) => fetchAPI<BlendedForecastResponse>(`/api/v1/forecast/blended/${stationId}`),
   getWRFChemStatus: () => fetchAPI<WRFChemStatus>('/api/v1/wrfchem/status'),
+  queueResponseAction: (request: ResponseActionRequest) => fetchPostAPI<{ id: string; status: string; created_at: string }>('/api/v1/response/actions', request),
+  getResponseActions: () => fetchAPI<{ actions: ResponseActionRequest[]; count: number }>('/api/v1/response/actions'),
+  getMitigationPartners: () => fetchAPI<{ partners: MitigationPartner[]; count: number }>('/api/v1/mitigation/partners'),
+  createCollectionRequest: (request: { partner_id: string; station_id: string; region: string; estimated_tons: number; source_fire_ids: string[]; message: string }) => fetchPostAPI<{ id: string; status: string; partner: MitigationPartner }>('/api/v1/mitigation/collection-requests', request),
 };

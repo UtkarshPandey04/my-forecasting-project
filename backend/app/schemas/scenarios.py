@@ -49,6 +49,7 @@ class ScenarioResponse(BaseModel):
     explanation: ScenarioExplanation
     assumptions: List[str]
     disclaimer: str
+    live_context: Dict[str, Any] = {}
     points: List[ScenarioPoint]
 
 

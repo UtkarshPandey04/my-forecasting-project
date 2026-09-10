@@ -20,6 +20,7 @@ export default function DataSourcesModal({
   if (!isOpen) return null;
 
   const mode = health?.mode || 'DEMO';
+  const providerStatus = new Map((health?.providers || []).map((provider) => [provider.name, provider]));
 
   const SOURCES = [
     {
@@ -28,7 +29,7 @@ export default function DataSourcesModal({
       pollutants: 'PM2.5, PM10, NO2, SO2, CO, O3, NH3',
       coverage: `${stationCount || 40} Active Stations`,
       refresh: 'Hourly ground-level ingestion',
-      status: 'Connected',
+      status: providerStatus.get('CPCB')?.status || (mode === 'LIVE' ? 'error' : 'not_configured'),
       icon: Database,
       accent: '#38bdf8'
     },
@@ -38,7 +39,7 @@ export default function DataSourcesModal({
       pollutants: 'Wind Speed, Wind Direction, Temp, Humidity, PBLH, Pressure',
       coverage: 'Continuous spatial grid over Delhi NCR',
       refresh: 'Hourly synoptic update',
-      status: 'Connected',
+      status: providerStatus.get('IMD')?.status || (mode === 'LIVE' ? 'error' : 'not_configured'),
       icon: Wind,
       accent: '#60a5fa'
     },
@@ -48,7 +49,7 @@ export default function DataSourcesModal({
       pollutants: 'Active Thermal Anomalies, FRP (MW), Brightness Temp',
       coverage: 'Northern India Agricultural Belt (Punjab, Haryana, NCR)',
       refresh: 'Daily orbital overpass & NRT stream',
-      status: 'Connected',
+      status: providerStatus.get('NASA FIRMS')?.status || (mode === 'LIVE' ? 'error' : 'not_configured'),
       icon: Satellite,
       accent: '#f97316'
     },
@@ -58,7 +59,7 @@ export default function DataSourcesModal({
       pollutants: 'PM2.5 Dry Mass, Tropospheric Ozone, Nitrogen Oxides',
       coverage: 'Regional NetCDF Grid (28.2°N–28.9°N, 76.8°E–77.6°E)',
       refresh: '72-Hour Numerical Run Cycle',
-      status: 'Ready',
+      status: providerStatus.get('WRF-Chem')?.status || 'error',
       icon: ShieldCheck,
       accent: '#10b981'
     }
@@ -103,6 +104,12 @@ export default function DataSourcesModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {SOURCES.map((s, idx) => {
               const Icon = s.icon;
+              const statusLabel = s.status === 'connected' ? 'Connected' : s.status === 'not_configured' ? 'Not configured' : 'Error';
+              const statusClasses = s.status === 'connected'
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                : s.status === 'not_configured'
+                  ? 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                  : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
               return (
                 <div
                   key={idx}
@@ -114,9 +121,9 @@ export default function DataSourcesModal({
                         <Icon className="w-4 h-4" style={{ color: s.accent }} />
                         <h4 className="text-xs font-bold text-white">{s.name}</h4>
                       </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                        <CheckCircle2 className="w-2.5 h-2.5" />
-                        {s.status}
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border flex items-center gap-1 ${statusClasses}`}>
+                        {s.status === 'connected' ? <CheckCircle2 className="w-2.5 h-2.5" /> : <AlertCircle className="w-2.5 h-2.5" />}
+                        {statusLabel}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-400 leading-relaxed">

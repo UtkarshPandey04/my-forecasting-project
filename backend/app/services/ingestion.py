@@ -1,5 +1,6 @@
 """Ingestion service — orchestrates data fetch from providers and serves observations."""
 
+import asyncio
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict
 from datetime import datetime
@@ -11,6 +12,23 @@ from app.providers.imd import IMDWeatherProvider
 from app.models.station import Station
 from app.services.aqi import calculate_naqi
 
+_cpcb_provider: Optional[CPCBProvider] = None
+_imd_provider: Optional[IMDWeatherProvider] = None
+
+
+def _shared_cpcb(api_key: str) -> CPCBProvider:
+    global _cpcb_provider
+    if _cpcb_provider is None:
+        _cpcb_provider = CPCBProvider(api_key=api_key)
+    return _cpcb_provider
+
+
+def _shared_imd() -> IMDWeatherProvider:
+    global _imd_provider
+    if _imd_provider is None:
+        _imd_provider = IMDWeatherProvider()
+    return _imd_provider
+
 
 class IngestionService:
     def __init__(self, db: Session, settings: Settings):
@@ -21,9 +39,35 @@ class IngestionService:
             self.aq_provider = self._demo
             self.weather_provider = self._demo
         else:
-            self.aq_provider = CPCBProvider(api_key=settings.CPCB_API_KEY)
-            self.weather_provider = IMDWeatherProvider()
+            self.aq_provider = _shared_cpcb(api_key=settings.CPCB_API_KEY)
+            self.weather_provider = _shared_imd()
             self._demo = None
+
+    def _build_observation(self, station: Station, merged: Dict) -> Dict:
+        measurements = {
+            k: merged.get(k)
+            for k in ("pm25", "pm10", "no2", "so2", "co", "o3", "nh3")
+        }
+        aqi_info = calculate_naqi(measurements)
+        timestamp = merged.get("timestamp", datetime.now())
+        return {
+            "station_id": station.id,
+            "station_name": station.name,
+            "timestamp": timestamp.isoformat() if isinstance(timestamp, datetime) else str(timestamp),
+            "pollutants": measurements,
+            "meteorology": {
+                "temperature": merged.get("temperature"),
+                "humidity": merged.get("humidity"),
+                "wind_speed": merged.get("wind_speed"),
+                "wind_direction": merged.get("wind_direction"),
+            },
+            "aqi": aqi_info.get("aqi"),
+            "aqi_category": aqi_info.get("category"),
+            "aqi_color": aqi_info.get("color"),
+            "prominent_pollutant": aqi_info.get("prominent_pollutant"),
+            "source": merged.get("source", "UNKNOWN"),
+            "mode": self.settings.APP_MODE,
+        }
 
     async def get_current_observations(
         self, station_id: Optional[str] = None
@@ -34,51 +78,43 @@ class IngestionService:
             query = query.filter(Station.id == station_id)
         stations = query.filter(Station.is_active == True).all()
 
-        results: List[Dict] = []
-        for s in stations:
-            aq_data = await self.aq_provider.fetch_current(s.id, s.latitude, s.longitude)
-            if not aq_data:
-                continue
+        if self.settings.APP_MODE == "LIVE" and hasattr(self.aq_provider, "_fetch_records"):
+            await self.aq_provider._fetch_records()
 
-            # In DEMO mode the demo provider returns everything in one dict
-            if self.settings.APP_MODE == "DEMO":
-                merged = aq_data
-            else:
-                weather_data = await self.weather_provider.fetch_current(
-                    s.latitude, s.longitude
+        semaphore = asyncio.Semaphore(8)
+
+        async def load_station(station: Station) -> Optional[Dict]:
+            async with semaphore:
+                aq_lookup = station.name if self.settings.APP_MODE == "LIVE" else station.id
+                aq_data = await self.aq_provider.fetch_current(
+                    aq_lookup, station.latitude, station.longitude
                 )
-                merged = {**aq_data, **(weather_data or {})}
+                if not aq_data:
+                    return None
+                if self.settings.APP_MODE == "DEMO":
+                    merged = aq_data
+                else:
+                    weather_data = await self.weather_provider.fetch_current(
+                        station.latitude, station.longitude
+                    ) or {}
+                    weather_fields = {
+                        key: weather_data.get(key)
+                        for key in (
+                            "temperature",
+                            "humidity",
+                            "wind_speed",
+                            "wind_direction",
+                            "pressure",
+                            "precipitation",
+                            "boundary_layer_height",
+                        )
+                        if weather_data.get(key) is not None
+                    }
+                    merged = {**aq_data, **weather_fields}
+                return self._build_observation(station, merged)
 
-            measurements = {
-                k: merged.get(k)
-                for k in ("pm25", "pm10", "no2", "so2", "co", "o3", "nh3")
-            }
-            aqi_info = calculate_naqi(measurements)
-
-            results.append(
-                {
-                    "station_id": s.id,
-                    "station_name": s.name,
-                    "timestamp": merged.get("timestamp", datetime.now()).isoformat()
-                    if isinstance(merged.get("timestamp"), datetime)
-                    else str(merged.get("timestamp", datetime.now())),
-                    "pollutants": measurements,
-                    "meteorology": {
-                        "temperature": merged.get("temperature"),
-                        "humidity": merged.get("humidity"),
-                        "wind_speed": merged.get("wind_speed"),
-                        "wind_direction": merged.get("wind_direction"),
-                    },
-                    "aqi": aqi_info.get("aqi"),
-                    "aqi_category": aqi_info.get("category"),
-                    "aqi_color": aqi_info.get("color"),
-                    "prominent_pollutant": aqi_info.get("prominent_pollutant"),
-                    "source": merged.get("source", "UNKNOWN"),
-                    "mode": self.settings.APP_MODE,
-                }
-            )
-
-        return results
+        loaded = await asyncio.gather(*(load_station(station) for station in stations))
+        return [item for item in loaded if item]
 
     async def get_provider_status(self) -> List[Dict]:
         """Return connection status of configured providers."""
@@ -91,6 +127,7 @@ class IngestionService:
             {
                 "name": "CPCB" if self.settings.APP_MODE == "LIVE" else "Demo AQ",
                 "status": "connected" if aq_ok else "error",
+                "message": getattr(self.aq_provider, "last_error", None),
             }
         )
 

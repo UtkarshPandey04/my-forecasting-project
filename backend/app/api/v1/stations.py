@@ -7,6 +7,7 @@ from app.schemas.station import StationResponse, StationListResponse
 
 router = APIRouter()
 
+@router.get("", response_model=StationListResponse)
 @router.get("/", response_model=StationListResponse)
 def get_stations(db: Session = Depends(get_db_session)):
     stations = db.query(Station).all()

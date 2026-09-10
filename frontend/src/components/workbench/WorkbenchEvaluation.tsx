@@ -15,24 +15,27 @@ import {
   Tooltip,
   Legend
 } from 'recharts';
-import { BarChart3, ShieldCheck, CheckCircle2, Award, Cpu, AlertTriangle } from 'lucide-react';
+import { BarChart3, Award, AlertTriangle } from 'lucide-react';
 
 export default function WorkbenchEvaluation() {
   const [data, setData] = useState<EvaluationBenchmarkResponse | null>(null);
-  const [selectedModelId, setSelectedModelId] = useState<string>('proposed_gnn_transformer');
+  const [selectedModelId, setSelectedModelId] = useState<string>('gnn_transformer_proposed');
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadBenchmark() {
       try {
         setLoading(true);
+        setErrorMsg(null);
         const res = await api.getModelComparison();
         setData(res);
         setSelectedModelId(res.selected_model_id || 'proposed_gnn_transformer');
       } catch (err) {
         console.error('Failed to load benchmark:', err);
+        setErrorMsg('Evaluation API unavailable. Check the backend and benchmark file.');
       } finally {
         setLoading(false);
       }
@@ -54,7 +57,7 @@ export default function WorkbenchEvaluation() {
     }
   };
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center text-xs font-mono text-slate-500 animate-pulse">
         Loading research benchmark metrics from model registry...
@@ -62,9 +65,21 @@ export default function WorkbenchEvaluation() {
     );
   }
 
+  if (!data) {
+    return (
+      <div className="flex-1 p-6 flex items-center justify-center bg-[#06090e]">
+        <div className="border border-rose-500/30 bg-rose-950/20 p-5 text-center">
+          <AlertTriangle className="mx-auto h-5 w-5 text-rose-300" />
+          <p className="mt-3 text-sm text-rose-200">{errorMsg || 'No evaluation benchmark data available.'}</p>
+          <button onClick={() => window.location.reload()} className="mt-4 border border-rose-300/30 px-3 py-2 text-xs text-rose-100">Retry evaluation</button>
+        </div>
+      </div>
+    );
+  }
+
   // Transform horizon metrics for comparison chart
   const horizonChartData = [6, 12, 24, 48, 72].map((h) => {
-    const row: any = { horizon: `+${h}h` };
+    const row: Record<string, string | number | null> = { horizon: `+${h}h` };
     data.models.forEach((m) => {
       const metric = m.horizon_metrics.find((hm) => hm.horizon_hours === h);
       row[m.model_id] = metric ? metric.mae : null;

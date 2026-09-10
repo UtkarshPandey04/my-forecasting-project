@@ -5,6 +5,10 @@ from app.api.deps import get_db_session, get_app_settings
 from app.core.config import Settings
 from app.schemas.health import HealthResponse, DataFreshnessResponse, ProviderStatus
 from app.services.ingestion import IngestionService
+from app.providers.firms import NASAFIRMSProvider
+from app.providers.imd import IMDWeatherProvider
+from app.providers.wrfchem import WRFChemAdapter
+import os
 import time
 
 router = APIRouter()
@@ -17,6 +21,19 @@ async def get_health(
 ):
     service = IngestionService(db, settings)
     provider_status = await service.get_provider_status()
+    firms_ok = await NASAFIRMSProvider(settings.FIRMS_MAP_KEY).check_connection() if settings.FIRMS_MAP_KEY else False
+    provider_status.append({
+        "name": "NASA FIRMS",
+        "status": "connected" if firms_ok else "not_configured",
+        "message": "VIIRS NRT fire feed" if firms_ok else "Set FIRMS_MAP_KEY for live fire detections",
+    })
+    wrf_adapter = WRFChemAdapter()
+    wrf_ok = os.path.exists(wrf_adapter.default_sample_file)
+    provider_status.append({
+        "name": "WRF-Chem",
+        "status": "connected" if wrf_ok else "error",
+        "message": "Local NetCDF forecast" if wrf_ok else "Forecast file unavailable",
+    })
     
     return HealthResponse(
         status="healthy",

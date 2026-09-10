@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Station, ScenarioResponse, PresetScenario } from '@/lib/types';
 import {
@@ -45,6 +45,7 @@ export default function WorkbenchWhatIf({ stations, selectedStationId }: Workben
   const [scenarioName, setScenarioName] = useState<string>('Custom Scenario');
   const [scenarioData, setScenarioData] = useState<ScenarioResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const simulationRequestRef = useRef(0);
 
   useEffect(() => {
     async function loadPresets() {
@@ -60,6 +61,7 @@ export default function WorkbenchWhatIf({ stations, selectedStationId }: Workben
 
   useEffect(() => {
     async function runSim() {
+      const requestId = ++simulationRequestRef.current;
       try {
         setLoading(true);
         const res = await api.simulateScenario({
@@ -69,11 +71,17 @@ export default function WorkbenchWhatIf({ stations, selectedStationId }: Workben
           fire_activity_delta_pct: firePct,
           scenario_name: scenarioName
         });
-        setScenarioData(res);
+        if (requestId === simulationRequestRef.current) {
+          setScenarioData(res);
+        }
       } catch (err) {
-        console.error('Failed to simulate:', err);
+        if (requestId === simulationRequestRef.current) {
+          console.error('Failed to simulate:', err);
+        }
       } finally {
-        setLoading(false);
+        if (requestId === simulationRequestRef.current) {
+          setLoading(false);
+        }
       }
     }
 
@@ -301,6 +309,16 @@ export default function WorkbenchWhatIf({ stations, selectedStationId }: Workben
               </div>
             </div>
           )}
+
+          {scenarioData?.live_context && (
+            <div className="border border-cyan-500/20 bg-cyan-950/20 px-3 py-2 text-[10px] font-mono text-cyan-200">
+              Baseline anchored to {scenarioData.live_context.source || 'provider'} telemetry
+              {scenarioData.live_context.timestamp ? ` · ${new Date(scenarioData.live_context.timestamp).toLocaleTimeString()}` : ''}
+              {scenarioData.live_context.wind_speed !== null && scenarioData.live_context.wind_speed !== undefined
+                ? ` · wind ${scenarioData.live_context.wind_speed.toFixed(1)} m/s`
+                : ''}
+            </div>
+          )}
         </div>
 
         {/* Right Chart */}
@@ -322,7 +340,7 @@ export default function WorkbenchWhatIf({ stations, selectedStationId }: Workben
                 <YAxis stroke="#64748b" fontSize={11} unit=" µg" />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#070b12', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }}
-                  formatter={(v: any) => [`${v} µg/m³`, '']}
+                  formatter={(value) => [`${value ?? '--'} µg/m³`, '']}
                   labelFormatter={(l) => `Horizon: +${l}h`}
                 />
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />

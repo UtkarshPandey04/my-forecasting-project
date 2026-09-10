@@ -9,9 +9,12 @@ import hashlib
 import csv
 import io
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 import httpx
+
+_FIRMS_CACHE_TTL = timedelta(minutes=5)
+_firms_cache: Dict[str, Tuple[datetime, List[Dict]]] = {}
 
 
 class FIRMSProvider(ABC):
@@ -57,6 +60,10 @@ class NASAFIRMSProvider(FIRMSProvider):
         # Format: /api/area/csv/[MAP_KEY]/[SOURCE]/[AREA_COORDINATES]/[DAY_RANGE]
         # AREA_COORDINATES: min_lon,min_lat,max_lon,max_lat
         area_str = f"{min_lon:.2f},{min_lat:.2f},{max_lon:.2f},{max_lat:.2f}"
+        cache_key = f"{area_str}/{days}"
+        cached = _firms_cache.get(cache_key)
+        if cached and datetime.now() < cached[0]:
+            return cached[1]
         url = f"{self.BASE_URL}/{self.map_key}/VIIRS_SNPP_NRT/{area_str}/{days}"
 
         try:
@@ -92,6 +99,7 @@ class NASAFIRMSProvider(FIRMSProvider):
                     except (ValueError, TypeError):
                         continue
 
+                _firms_cache[cache_key] = (datetime.now() + _FIRMS_CACHE_TTL, fires)
                 return fires
         except Exception:
             return []

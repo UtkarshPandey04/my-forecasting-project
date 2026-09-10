@@ -65,7 +65,8 @@ class ScenarioEngine:
         wind_speed_delta_pct: float = 0.0,
         rainfall_mm: float = 0.0,
         fire_activity_delta_pct: float = 0.0,
-        scenario_name: Optional[str] = None
+        scenario_name: Optional[str] = None,
+        live_context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Runs counterfactual perturbation on 72-hour forecast baseline.
         
@@ -87,6 +88,13 @@ class ScenarioEngine:
         )
         base_points = blended_res.get("points", [])
 
+        # Anchor the synthetic/WRF trajectory to the latest CPCB + weather reading
+        # so counterfactuals start from observed reality instead of a disconnected baseline.
+        live_context = live_context or {}
+        live_pm25 = live_context.get("pm25")
+        baseline_pm25 = base_points[0].get("blended_pm25") if base_points else None
+        live_offset = float(live_pm25 - baseline_pm25) if live_pm25 is not None and baseline_pm25 is not None else 0.0
+
         # Clamp perturbation bounds for physical plausibility
         clamped_ws_pct = max(-80.0, min(150.0, float(wind_speed_delta_pct)))
         clamped_rain = max(0.0, min(100.0, float(rainfall_mm)))
@@ -105,7 +113,8 @@ class ScenarioEngine:
         total_scenario_pm25 = 0.0
 
         for pt in base_points:
-            pm25_base = pt["blended_pm25"]
+            decay = math.exp(-max(0, pt["hour_offset"]) / 24.0)
+            pm25_base = max(8.0, pt["blended_pm25"] + live_offset * decay)
             total_baseline_pm25 += pm25_base
 
             # A. Regional Fire Source Abatement / Surge
@@ -203,6 +212,7 @@ class ScenarioEngine:
                 "Represents counterfactual physics response to isolated meteorological/source perturbations; "
                 "does not constitute a guaranteed causal outcome."
             ),
+            "live_context": live_context,
             "points": scenario_points
         }
 

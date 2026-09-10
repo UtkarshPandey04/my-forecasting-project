@@ -30,6 +30,8 @@ import WorkbenchEvaluation from '@/components/workbench/WorkbenchEvaluation';
 import WorkbenchResearchDocs from '@/components/workbench/WorkbenchResearchDocs';
 import AskAeroSenseModal from '@/components/workbench/AskAeroSenseModal';
 import DataSourcesModal from '@/components/workbench/DataSourcesModal';
+import IncidentCommand from '@/components/workbench/IncidentCommand';
+import ResponseConsole from '@/components/workbench/ResponseConsole';
 
 // Dynamically import map to avoid SSR issues
 const DelhiMap = dynamic(() => import('@/components/map/DelhiMap'), {
@@ -70,13 +72,21 @@ export default function WorkbenchPage() {
   const [loadingForecast, setLoadingForecast] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
+  const applyObservations = (obsRes: { observations: Observation[]; last_updated: string | null }) => {
+    const obsMap: Record<string, Observation> = {};
+    obsRes.observations.forEach((o) => {
+      obsMap[o.station_id] = o;
+    });
+    setObservations(obsMap);
+    setLastUpdated(obsRes.last_updated);
+  };
+
   // Initial Load
   const fetchAllData = async () => {
     try {
       setLoading(true);
       const [
         stationsRes,
-        obsRes,
         healthRes,
         regimeRes,
         indicesRes,
@@ -84,7 +94,6 @@ export default function WorkbenchPage() {
         transportRes
       ] = await Promise.all([
         api.getStations(),
-        api.getObservations(),
         api.getHealth().catch(() => null),
         api.getAtmosphericRegime().catch(() => null),
         api.getDerivedIndices().catch(() => null),
@@ -93,14 +102,6 @@ export default function WorkbenchPage() {
       ]);
 
       setStations(stationsRes.stations || []);
-
-      const obsMap: Record<string, Observation> = {};
-      obsRes.observations.forEach((o) => {
-        obsMap[o.station_id] = o;
-      });
-      setObservations(obsMap);
-      setLastUpdated(obsRes.last_updated);
-
       if (healthRes) setHealth(healthRes);
       if (regimeRes) setRegime(regimeRes);
       if (indicesRes) setIndices(indicesRes);
@@ -111,8 +112,13 @@ export default function WorkbenchPage() {
         setWindSpeed(transportRes.wind_speed_ms || 3.2);
       }
 
-      // Initial station forecast
       loadStationData('anand_vihar');
+      api.getObservations('anand_vihar')
+        .then(applyObservations)
+        .catch((err) => console.error('Failed to load selected-station observation:', err));
+      api.getObservations()
+        .then(applyObservations)
+        .catch((err) => console.error('Failed to load observations:', err));
     } catch (err) {
       console.error('Failed to load workbench telemetry:', err);
     } finally {
@@ -217,6 +223,15 @@ export default function WorkbenchPage() {
         {/* View Router */}
         {currentView === 'what-if' ? (
           <WorkbenchWhatIf stations={stations} selectedStationId={selectedStationId} />
+        ) : currentView === 'incident-command' ? (
+          <IncidentCommand activeFires={activeFires} observations={observations} />
+        ) : currentView === 'response-console' ? (
+          <ResponseConsole
+            forecast={forecast}
+            observation={selectedObservation}
+            stationId={selectedStationId}
+            onOpenWhatIf={() => setCurrentView('what-if')}
+          />
         ) : currentView === 'evaluation' ? (
           <WorkbenchEvaluation />
         ) : currentView === 'research' ? (

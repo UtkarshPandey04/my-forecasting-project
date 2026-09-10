@@ -1,11 +1,39 @@
 'use client';
 
-import React, { useState } from 'react';
-import { AlertTriangle, ArrowRight, BadgeIndianRupee, Check, ExternalLink, Factory, Flame, HeartPulse, Leaf, MapPin, Radio, Route, Satellite, Shield, Sprout, Thermometer, Truck, Users, Waves, Wifi } from 'lucide-react';
-import { ActiveFirePoint, Observation } from '@/lib/types';
+import React, { useState, useEffect } from 'react';
+import {
+  AlertTriangle,
+  ArrowRight,
+  BadgeIndianRupee,
+  Check,
+  ExternalLink,
+  Factory,
+  Flame,
+  HeartPulse,
+  Leaf,
+  MapPin,
+  Radio,
+  Route,
+  Satellite,
+  Shield,
+  Sprout,
+  Thermometer,
+  Truck,
+  Users,
+  Waves,
+  Wifi,
+  Loader2,
+  RefreshCw,
+  Wind
+} from 'lucide-react';
+import { ActiveFirePoint, Observation, DisasterRiskResponse, DisasterHazard } from '@/lib/types';
 import { api } from '@/lib/api';
 
-interface IncidentCommandProps { activeFires: ActiveFirePoint[]; observations: Record<string, Observation>; }
+interface IncidentCommandProps {
+  activeFires: ActiveFirePoint[];
+  observations: Record<string, Observation>;
+}
+
 type Source = { name: string; provider: string; href: string; icon: React.ElementType; live: boolean };
 type ResponseAction = [string, string, React.ElementType];
 
@@ -22,26 +50,358 @@ const sources: Source[] = [
   { name: 'Citizen reports', provider: 'CPGRAMS', href: 'https://pgportal.gov.in/', icon: Users, live: false },
   { name: 'Public / social reports', provider: 'data.gov.in', href: 'https://www.data.gov.in/', icon: Wifi, live: false },
 ];
+
 const stages = ['Risk prediction', 'Pattern detection', 'Multi-source verification', 'Severity analysis', 'Location intelligence'];
-const responseActions: ResponseAction[] = [['High flood risk', 'Residents + shelter prep', Waves], ['High AQI / smoke', 'Health alert for vulnerable people', HeartPulse], ['Wildfire risk', 'Fire department notification', Flame], ['Road damage risk', 'Route warning', Route], ['High heat risk', 'Heatwave safety advisory', Thermometer], ['Vulnerable zones', 'Priority emergency response', Shield]];
-const fallbackFires: ActiveFirePoint[] = [{ id: 'demo-1', latitude: 29.6, longitude: 76.9, frp: 41, brightness: 332, confidence: 'high', acq_date: '', acq_time: '14:20', satellite: 'DEMO', source: 'demo' }];
+const responseActions: ResponseAction[] = [
+  ['High flood risk', 'Residents + shelter prep', Waves],
+  ['High AQI / smoke', 'Health alert for vulnerable people', HeartPulse],
+  ['Wildfire risk', 'Fire department notification', Flame],
+  ['Road damage risk', 'Route warning', Route],
+  ['High heat risk', 'Heatwave safety advisory', Thermometer],
+  ['Vulnerable zones', 'Priority emergency response', Shield]
+];
+
+const fallbackFires: ActiveFirePoint[] = [
+  { id: 'demo-1', latitude: 29.6, longitude: 76.9, frp: 41, brightness: 332, confidence: 'high', acq_date: '', acq_time: '14:20', satellite: 'DEMO', source: 'demo' }
+];
 
 export default function IncidentCommand({ activeFires, observations }: IncidentCommandProps) {
   const [actions, setActions] = useState<string[]>([]);
+  const [disasterRisk, setDisasterRisk] = useState<DisasterRiskResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  const fetchRiskData = async () => {
+    try {
+      setRefreshing(true);
+      const data = await api.getDisasterRisk();
+      setDisasterRisk(data);
+    } catch (err) {
+      console.error('Failed to fetch disaster risk telemetry:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRiskData();
+  }, []);
+
   const fires = activeFires.length ? activeFires : fallbackFires;
-  const totalFrp = fires.reduce((sum, fire) => sum + fire.frp, 0);
-  const maxAqi = Math.max(0, ...Object.values(observations).map((item) => item.aqi ?? 0));
+  const totalFrp = disasterRisk?.fires?.total_frp ?? fires.reduce((sum, fire) => sum + fire.frp, 0);
+  const maxAqi = disasterRisk?.air_quality?.max_aqi ?? Math.max(0, ...Object.values(observations).map((item) => item.aqi ?? 0));
   const liveObservation = Object.values(observations).some((item) => item.source && !item.source.toLowerCase().includes('demo'));
+
   const toggle = async (id: string) => {
     if (actions.includes(id)) return;
-    try { await api.queueResponseAction({ action_type: id, stakeholder: 'operations', station_id: 'anand_vihar', severity: 'high', message: `Operational response queued from incident command: ${id}.`, source: 'AeroSense Incident Command' }); } catch (error) { console.error('Failed to queue incident action:', error); } finally { setActions((current) => current.includes(id) ? current : [...current, id]); }
+    try {
+      await api.queueResponseAction({
+        action_type: id,
+        stakeholder: 'operations',
+        station_id: 'anand_vihar',
+        severity: 'high',
+        message: `Operational response queued from incident command: ${id}.`,
+        source: 'AeroSense Incident Command'
+      });
+    } catch (error) {
+      console.error('Failed to queue incident action:', error);
+    } finally {
+      setActions((current) => (current.includes(id) ? current : [...current, id]));
+    }
   };
+
   const queued = (id: string) => actions.includes(id);
 
-  return <main className="flex-1 overflow-y-auto bg-[#07090c] text-slate-100"><div className="mx-auto max-w-[1500px] space-y-5 p-5 lg:p-7">
-    <header className="flex flex-col justify-between gap-4 border-b border-cyan-300/15 pb-5 md:flex-row md:items-end"><div><div className="mb-2 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300"><Radio className="h-3.5 w-3.5 animate-pulse" /> Predictive emergency intelligence</div><h1 className="text-2xl font-semibold text-white">Disaster Risk Prediction Engine</h1><p className="mt-1 text-sm text-slate-400">Detect <b className="text-cyan-300">→</b> Analyze <b className="text-cyan-300">→</b> Predict <b className="text-cyan-300">→</b> Alert <b className="text-cyan-300">→</b> Respond</p></div><span className="text-xs font-mono text-emerald-300">● {liveObservation ? 'LIVE PROVIDERS CONNECTED' : 'DEMO TELEMETRY ACTIVE'}</span></header>
-    <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]"><div className="border border-white/10 bg-[#0d1116] p-4"><div className="mb-3 flex justify-between"><div><h2 className="text-[11px] uppercase tracking-[0.16em] text-slate-200">Input telemetry mesh</h2><p className="mt-1 text-[11px] text-slate-500">Open a source to inspect provenance. Live signals are marked explicitly.</p></div><span className="text-[10px] font-mono text-emerald-300">{liveObservation ? 'CPCB / IMD LIVE' : 'DEMO MODE'}</span></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{sources.map((source) => { const Icon = source.icon; const live = source.live || (source.name === 'Weather + forecast' && liveObservation); return <a key={source.name} href={source.href} target="_blank" rel="noreferrer" title={`Open ${source.provider}`} className="group flex min-h-16 flex-col justify-between border border-white/[0.08] bg-[#10161d] p-2.5 transition hover:border-cyan-300/50 hover:bg-[#14212a]"><div className="flex items-center gap-2"><Icon className="h-3.5 w-3.5 shrink-0 text-cyan-300" /><span className="text-[10px] leading-tight text-slate-200">{source.name}</span><ExternalLink className="ml-auto h-3 w-3 text-slate-600 transition group-hover:text-cyan-300" /></div><div className="flex items-center justify-between pl-5 text-[9px] font-mono"><span className="truncate text-slate-500">{source.provider}</span><span className={`ml-1 h-1.5 w-1.5 shrink-0 rounded-full ${live ? 'bg-emerald-400' : 'bg-slate-600'}`} /></div></a>; })}</div></div><div className="border border-cyan-300/25 bg-[#0d1920] p-5"><div className="flex items-center gap-2 text-cyan-200"><Shield className="h-5 w-5" /><h2 className="text-sm font-semibold">AI disaster intelligence engine</h2></div><div className="mt-4 space-y-2">{stages.map((stage, index) => <div key={stage} className="flex items-center gap-3 border-b border-cyan-300/10 pb-2 text-xs"><span className="font-mono text-cyan-400">0{index + 1}</span><span>{stage}</span><Check className="ml-auto h-3.5 w-3.5 text-emerald-300" /></div>)}</div><div className="mt-4 text-[10px] font-mono text-slate-500">Provider evidence is attached before escalation.</div></div></section>
-    <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]"><div className="border border-white/10 bg-[#0d1116] p-5"><div className="flex justify-between"><div><h2 className="text-sm uppercase tracking-[0.14em] text-slate-200">Live disaster risk map</h2><p className="mt-1 text-xs text-slate-500">NASA FIRMS fire detections and provider links are available above.</p></div><span className="text-[10px] font-mono text-slate-500">{fires.length} FIRE SIGNALS · {Math.round(totalFrp)} MW FRP</span></div><div className="relative mt-4 h-[320px] overflow-hidden border border-cyan-300/15 bg-[#091016] bg-[linear-gradient(rgba(56,189,248,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(56,189,248,0.06)_1px,transparent_1px)] bg-[size:34px_34px]"><div className="absolute inset-x-[10%] top-[38%] h-px rotate-6 bg-linear-to-r from-transparent via-cyan-300/50 to-transparent" /><div className="absolute left-[50%] top-[55%] flex -translate-x-1/2 items-center gap-2 text-xs text-cyan-200"><MapPin className="h-4 w-4" /> Delhi NCR command zone</div><div className="absolute left-[18%] top-[23%] border border-rose-300/70 bg-rose-500/20 p-2 text-rose-100"><b className="font-mono">92/100</b><div className="text-[10px]">Flood · VERY HIGH</div></div><div className="absolute left-[70%] top-[32%] border border-orange-300/70 bg-orange-400/20 p-2 text-orange-100"><b className="font-mono">68/100</b><div className="text-[10px]">Wildfire · MODERATE</div></div><div className="absolute left-[52%] top-[75%] border border-emerald-300/70 bg-emerald-400/20 p-2 text-emerald-100"><b className="font-mono">21/100</b><div className="text-[10px]">Heatwave · LOW</div></div>{fires.map((fire, index) => <button key={fire.id} onClick={() => toggle(fire.id)} className={`absolute flex h-8 w-8 items-center justify-center rounded-full border border-rose-300/60 bg-rose-500/20 text-rose-100 ${index ? 'left-[62%] top-[18%]' : 'left-[31%] top-[46%]'} ${queued(fire.id) ? 'ring-2 ring-emerald-300' : ''}`}><Flame className="h-4 w-4" /></button>)}</div></div><div className="space-y-4"><div className="border border-rose-300/25 bg-[#171116] p-5"><div className="flex items-center gap-2 text-rose-200"><AlertTriangle className="h-4 w-4" /><h2 className="text-sm">AI recommendation</h2></div><p className="mt-4 border-l-2 border-rose-300/70 pl-3 text-xs leading-relaxed text-slate-300"><b className="font-mono text-rose-200">FLOOD RISK: 92/100</b><br />Heavy rainfall + rising river level detected.<br />3 high-risk zones identified.<br /><strong className="text-white">Recommend early warning and shelter preparation.</strong></p><button onClick={() => toggle('flood')} className="mt-3 flex items-center gap-2 border border-cyan-300/30 px-3 py-2 text-xs text-cyan-100">{queued('flood') ? <Check className="h-3.5 w-3.5" /> : <ArrowRight className="h-3.5 w-3.5" />}{queued('flood') ? 'Action queued' : 'Queue early warning'}</button></div><div className="border border-orange-300/25 bg-[#17130f] p-5"><div className="flex items-center gap-2 text-orange-200"><HeartPulse className="h-4 w-4" /><h2 className="text-sm">AQI health advisory</h2></div><div className="mt-3 text-3xl font-mono text-orange-200">{maxAqi || 286}</div><p className="mt-2 text-xs leading-relaxed text-slate-400">Smoke transport toward the city. Reduce outdoor exposure and protect vulnerable people.</p><button onClick={() => toggle('aqi')} className="mt-3 flex items-center gap-2 border border-cyan-300/30 px-3 py-2 text-xs text-cyan-100">{queued('aqi') ? <Check className="h-3.5 w-3.5" /> : <ArrowRight className="h-3.5 w-3.5" />}{queued('aqi') ? 'Action queued' : 'Publish health advisory'}</button></div></div></section>
-    <section className="grid gap-5 xl:grid-cols-2"><div className="border border-lime-300/20 bg-[#101610] p-5"><div className="flex items-center gap-2 text-lime-200"><Leaf className="h-4 w-4" /><h2 className="text-sm">Farmer support: prevent the burn</h2></div><p className="mt-2 text-xs text-slate-400">NASA FIRMS signal + wind trajectory → match a farmer with pickup before the next burn.</p><div className="mt-4 grid grid-cols-3 gap-2"><div className="border border-white/[0.08] bg-[#151d16] p-3"><Truck className="h-4 w-4 text-cyan-300" /><div className="mt-2 text-xs">Pickup route</div><div className="text-[10px] text-slate-500">2 within 12 km</div></div><div className="border border-white/[0.08] bg-[#151d16] p-3"><Factory className="h-4 w-4 text-pink-300" /><div className="mt-2 text-xs">Biomass buyer</div><div className="text-[10px] text-slate-500">₹1,850 / tonne</div></div><div className="border border-white/[0.08] bg-[#151d16] p-3"><BadgeIndianRupee className="h-4 w-4 text-emerald-300" /><div className="mt-2 text-xs">Reward</div><div className="text-[10px] text-slate-500">Verify prevention</div></div></div><button onClick={() => toggle('farmer')} className="mt-3 flex items-center gap-2 border border-lime-300/30 px-3 py-2 text-xs text-lime-100">{queued('farmer') ? <Check className="h-3.5 w-3.5" /> : <ArrowRight className="h-3.5 w-3.5" />}{queued('farmer') ? 'Collection requested' : 'Connect farmer to collection'}</button></div><div className="border border-cyan-300/20 bg-[#0d151a] p-5"><div className="flex items-center gap-2 text-cyan-200"><AlertTriangle className="h-4 w-4" /><h2 className="text-sm">Smart alert & response</h2></div><div className="mt-4 space-y-2">{responseActions.map(([title, detail, Icon]) => <button key={title} onClick={() => toggle(title)} className="flex w-full items-center gap-3 border border-white/[0.08] bg-[#111b21] p-3 text-left text-xs"><Icon className="h-4 w-4 shrink-0 text-cyan-300" /><span><span className="block text-slate-200">{title}</span><span className="text-[10px] text-slate-500">{detail}</span></span>{queued(title) ? <Check className="ml-auto h-3.5 w-3.5 text-emerald-300" /> : <ArrowRight className="ml-auto h-3.5 w-3.5 text-slate-500" />}</button>)}</div></div></section>
-  </div></main>;
+  // Helper hazard getters
+  const floodHazard = disasterRisk?.hazards?.find((h) => h.id === 'flood');
+  const fireHazard = disasterRisk?.hazards?.find((h) => h.id === 'wildfire');
+  const heatHazard = disasterRisk?.hazards?.find((h) => h.id === 'heatwave');
+  const aqiHazard = disasterRisk?.hazards?.find((h) => h.id === 'air_pollution');
+
+  return (
+    <main className="flex-1 overflow-y-auto bg-[#07090c] text-slate-100">
+      <div className="mx-auto max-w-[1500px] space-y-5 p-5 lg:p-7">
+        <header className="flex flex-col justify-between gap-4 border-b border-cyan-300/15 pb-5 md:flex-row md:items-end">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300">
+              <Radio className="h-3.5 w-3.5 animate-pulse" /> Predictive emergency intelligence
+            </div>
+            <h1 className="text-2xl font-semibold text-white">Disaster Risk Prediction Engine</h1>
+            <p className="mt-1 text-sm text-slate-400">
+              Detect <b className="text-cyan-300">→</b> Analyze <b className="text-cyan-300">→</b> Predict <b className="text-cyan-300">→</b> Alert <b className="text-cyan-300">→</b> Respond
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={fetchRiskData}
+              disabled={refreshing}
+              className="flex items-center gap-1.5 border border-cyan-300/30 bg-[#0d1620] px-3 py-1.5 text-xs text-cyan-200 hover:bg-[#122230] disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span>Refresh AI Telemetry</span>
+            </button>
+            <span className="text-xs font-mono text-emerald-300">
+              ● {liveObservation ? 'LIVE PROVIDERS CONNECTED' : 'DEMO TELEMETRY ACTIVE'}
+            </span>
+          </div>
+        </header>
+
+        {/* Dynamic Hazard Summary Banner */}
+        {disasterRisk && (
+          <section className="flex flex-wrap items-center justify-between gap-4 border border-cyan-500/20 bg-gradient-to-r from-[#0b1622] via-[#0f202e] to-[#0b1622] p-4 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded border border-rose-500/30 bg-rose-500/10 text-rose-300 font-mono text-base font-bold">
+                {disasterRisk.overall_score}
+              </div>
+              <div>
+                <div className="font-semibold text-white uppercase tracking-wider">
+                  Overall Composite Risk Level: <span className="text-rose-400 font-mono">{disasterRisk.overall_level}</span>
+                </div>
+                <div className="text-slate-400 mt-0.5">{disasterRisk.headline}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-[11px] font-mono text-slate-300">
+              <div>
+                <span className="text-slate-500">BLH:</span> {disasterRisk.meteorology.boundary_layer_height}m
+              </div>
+              <div>
+                <span className="text-slate-500">Wind:</span> {disasterRisk.meteorology.wind_speed} m/s
+              </div>
+              <div>
+                <span className="text-slate-500">Temp:</span> {disasterRisk.meteorology.temperature}°C
+              </div>
+              <div>
+                <span className="text-slate-500">24h Precip:</span> {disasterRisk.meteorology.precip_24h}mm
+              </div>
+            </div>
+          </section>
+        )}
+
+        <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="border border-white/10 bg-[#0d1116] p-4">
+            <div className="mb-3 flex justify-between">
+              <div>
+                <h2 className="text-[11px] uppercase tracking-[0.16em] text-slate-200">Input telemetry mesh</h2>
+                <p className="mt-1 text-[11px] text-slate-500">Open a source to inspect provenance. Live signals are marked explicitly.</p>
+              </div>
+              <span className="text-[10px] font-mono text-emerald-300">{liveObservation ? 'CPCB / IMD LIVE' : 'DEMO MODE'}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {sources.map((source) => {
+                const Icon = source.icon;
+                const live = source.live || (source.name === 'Weather + forecast' && liveObservation);
+                return (
+                  <a
+                    key={source.name}
+                    href={source.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={`Open ${source.provider}`}
+                    className="group flex min-h-16 flex-col justify-between border border-white/[0.08] bg-[#10161d] p-2.5 transition hover:border-cyan-300/50 hover:bg-[#14212a]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-3.5 w-3.5 shrink-0 text-cyan-300" />
+                      <span className="text-[10px] leading-tight text-slate-200">{source.name}</span>
+                      <ExternalLink className="ml-auto h-3 w-3 text-slate-600 transition group-hover:text-cyan-300" />
+                    </div>
+                    <div className="flex items-center justify-between pl-5 text-[9px] font-mono">
+                      <span className="truncate text-slate-500">{source.provider}</span>
+                      <span className={`ml-1 h-1.5 w-1.5 shrink-0 rounded-full ${live ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+          <div className="border border-cyan-300/25 bg-[#0d1920] p-5">
+            <div className="flex items-center gap-2 text-cyan-200">
+              <Shield className="h-5 w-5" />
+              <h2 className="text-sm font-semibold">AI disaster intelligence engine</h2>
+            </div>
+            <div className="mt-4 space-y-2">
+              {stages.map((stage, index) => (
+                <div key={stage} className="flex items-center gap-3 border-b border-cyan-300/10 pb-2 text-xs">
+                  <span className="font-mono text-cyan-400">0{index + 1}</span>
+                  <span>{stage}</span>
+                  <Check className="ml-auto h-3.5 w-3.5 text-emerald-300" />
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 text-[10px] font-mono text-slate-500">Provider evidence is attached before escalation.</div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="border border-white/10 bg-[#0d1116] p-5">
+            <div className="flex justify-between">
+              <div>
+                <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200">Live disaster risk map</h2>
+                <p className="mt-1 text-xs text-slate-500">NASA FIRMS fire detections and multi-hazard AI zones overlay.</p>
+              </div>
+              <span className="text-[10px] font-mono text-slate-500">
+                {fires.length} FIRE SIGNALS · {Math.round(totalFrp)} MW FRP
+              </span>
+            </div>
+            <div className="relative mt-4 h-[320px] overflow-hidden border border-cyan-300/15 bg-[#091016] bg-[linear-gradient(rgba(56,189,248,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(56,189,248,0.06)_1px,transparent_1px)] bg-[size:34px_34px]">
+              <div className="absolute inset-x-[10%] top-[38%] h-px rotate-6 bg-linear-to-r from-transparent via-cyan-300/50 to-transparent" />
+              <div className="absolute left-[50%] top-[55%] flex -translate-x-1/2 items-center gap-2 text-xs text-cyan-200">
+                <MapPin className="h-4 w-4" /> Delhi NCR command zone
+              </div>
+
+              {/* Dynamic Zones or Fallback Cards */}
+              {disasterRisk?.zones?.length ? (
+                disasterRisk.zones.map((zone) => (
+                  <div
+                    key={zone.id}
+                    style={{ left: `${zone.x_pct}%`, top: `${zone.y_pct}%` }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 border border-rose-400/80 bg-rose-950/80 p-2 backdrop-blur text-rose-100 shadow-lg"
+                  >
+                    <b className="font-mono text-sm">{zone.score}/100</b>
+                    <div className="text-[10px] font-semibold">{zone.name}</div>
+                    <div className="text-[9px] uppercase tracking-wider text-rose-300">{zone.hazard} · {zone.level}</div>
+                  </div>
+                ))
+              ) : (
+                <>
+                  <div className="absolute left-[18%] top-[23%] border border-rose-300/70 bg-rose-500/20 p-2 text-rose-100">
+                    <b className="font-mono">{floodHazard ? floodHazard.score : 92}/100</b>
+                    <div className="text-[10px]">Flood · {floodHazard ? floodHazard.level.toUpperCase() : 'VERY HIGH'}</div>
+                  </div>
+                  <div className="absolute left-[70%] top-[32%] border border-orange-300/70 bg-orange-400/20 p-2 text-orange-100">
+                    <b className="font-mono">{fireHazard ? fireHazard.score : 68}/100</b>
+                    <div className="text-[10px]">Wildfire · {fireHazard ? fireHazard.level.toUpperCase() : 'MODERATE'}</div>
+                  </div>
+                  <div className="absolute left-[52%] top-[75%] border border-emerald-300/70 bg-emerald-400/20 p-2 text-emerald-100">
+                    <b className="font-mono">{heatHazard ? heatHazard.score : 21}/100</b>
+                    <div className="text-[10px]">Heatwave · {heatHazard ? heatHazard.level.toUpperCase() : 'LOW'}</div>
+                  </div>
+                </>
+              )}
+
+              {fires.map((fire, index) => (
+                <button
+                  key={fire.id}
+                  onClick={() => toggle(fire.id)}
+                  className={`absolute flex h-8 w-8 items-center justify-center rounded-full border border-rose-300/60 bg-rose-500/20 text-rose-100 ${
+                    index ? 'left-[62%] top-[18%]' : 'left-[31%] top-[46%]'
+                  } ${queued(fire.id) ? 'ring-2 ring-emerald-300' : ''}`}
+                >
+                  <Flame className="h-4 w-4 text-rose-400" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* Primary Hazard Recommendation Card */}
+            <div className="border border-rose-300/25 bg-[#171116] p-5">
+              <div className="flex items-center gap-2 text-rose-200">
+                <AlertTriangle className="h-4 w-4" />
+                <h2 className="text-sm font-semibold">AI hazard recommendation</h2>
+              </div>
+              <p className="mt-4 border-l-2 border-rose-300/70 pl-3 text-xs leading-relaxed text-slate-300">
+                <b className="font-mono text-rose-200">
+                  {floodHazard ? `FLOOD RISK: ${floodHazard.score}/100` : 'FLOOD RISK: 92/100'}
+                </b>
+                <br />
+                {floodHazard?.recommendation || 'Heavy rainfall + rising river level detected. 3 high-risk zones identified.'}
+                <br />
+                <strong className="text-white">Recommend early warning and shelter preparation.</strong>
+              </p>
+              <button
+                onClick={() => toggle('flood')}
+                className="mt-3 flex items-center gap-2 border border-cyan-300/30 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-900/20"
+              >
+                {queued('flood') ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <ArrowRight className="h-3.5 w-3.5" />}
+                {queued('flood') ? 'Action queued' : 'Queue early warning'}
+              </button>
+            </div>
+
+            {/* AQI Health Advisory Card */}
+            <div className="border border-orange-300/25 bg-[#17130f] p-5">
+              <div className="flex items-center gap-2 text-orange-200">
+                <HeartPulse className="h-4 w-4" />
+                <h2 className="text-sm font-semibold">AQI health advisory</h2>
+              </div>
+              <div className="mt-3 text-3xl font-mono text-orange-200">{maxAqi || 286}</div>
+              <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                {aqiHazard?.evidence?.[0] || 'Smoke transport toward the city. Reduce outdoor exposure and protect vulnerable people.'}
+              </p>
+              <button
+                onClick={() => toggle('aqi')}
+                className="mt-3 flex items-center gap-2 border border-cyan-300/30 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-900/20"
+              >
+                {queued('aqi') ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <ArrowRight className="h-3.5 w-3.5" />}
+                {queued('aqi') ? 'Action queued' : 'Publish health advisory'}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-2">
+          <div className="border border-lime-300/20 bg-[#101610] p-5">
+            <div className="flex items-center gap-2 text-lime-200">
+              <Leaf className="h-4 w-4" />
+              <h2 className="text-sm font-semibold">Farmer support: prevent the burn</h2>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              NASA FIRMS signal + wind trajectory → match a farmer with pickup before the next burn.
+            </p>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="border border-white/[0.08] bg-[#151d16] p-3">
+                <Truck className="h-4 w-4 text-cyan-300" />
+                <div className="mt-2 text-xs">Pickup route</div>
+                <div className="text-[10px] text-slate-500">2 within 12 km</div>
+              </div>
+              <div className="border border-white/[0.08] bg-[#151d16] p-3">
+                <Factory className="h-4 w-4 text-pink-300" />
+                <div className="mt-2 text-xs">Biomass buyer</div>
+                <div className="text-[10px] text-slate-500">₹1,850 / tonne</div>
+              </div>
+              <div className="border border-white/[0.08] bg-[#151d16] p-3">
+                <BadgeIndianRupee className="h-4 w-4 text-emerald-300" />
+                <div className="mt-2 text-xs">Reward</div>
+                <div className="text-[10px] text-slate-500">Verify prevention</div>
+              </div>
+            </div>
+            <button
+              onClick={() => toggle('farmer')}
+              className="mt-3 flex items-center gap-2 border border-lime-300/30 px-3 py-2 text-xs text-lime-100 hover:bg-lime-900/20"
+            >
+              {queued('farmer') ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <ArrowRight className="h-3.5 w-3.5" />}
+              {queued('farmer') ? 'Collection requested' : 'Connect farmer to collection'}
+            </button>
+          </div>
+
+          <div className="border border-cyan-300/20 bg-[#0d151a] p-5">
+            <div className="flex items-center gap-2 text-cyan-200">
+              <AlertTriangle className="h-4 w-4" />
+              <h2 className="text-sm font-semibold">Smart alert & response</h2>
+            </div>
+            <div className="mt-4 space-y-2">
+              {responseActions.map(([title, detail, Icon]) => (
+                <button
+                  key={title}
+                  onClick={() => toggle(title)}
+                  className="flex w-full items-center gap-3 border border-white/[0.08] bg-[#111b21] p-3 text-left text-xs transition hover:border-cyan-300/40 hover:bg-[#15232c]"
+                >
+                  <Icon className="h-4 w-4 shrink-0 text-cyan-300" />
+                  <span>
+                    <span className="block text-slate-200">{title}</span>
+                    <span className="text-[10px] text-slate-500">{detail}</span>
+                  </span>
+                  {queued(title) ? (
+                    <Check className="ml-auto h-3.5 w-3.5 text-emerald-300" />
+                  ) : (
+                    <ArrowRight className="ml-auto h-3.5 w-3.5 text-slate-500" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
 }

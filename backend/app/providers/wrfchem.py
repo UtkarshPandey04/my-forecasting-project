@@ -67,12 +67,12 @@ class WRFChemAdapter:
         var_xlat = ds.createVariable("XLAT", "f4", ("south_north", "west_east"))
         var_xlat.units = "degrees_north"
         var_xlat.description = "LATITUDE, SOUTH IS NEGATIVE"
-        var_xlat[:] = lat_grid
+        var_xlat[:, :] = np.ascontiguousarray(lat_grid)
 
         var_xlong = ds.createVariable("XLONG", "f4", ("south_north", "west_east"))
         var_xlong.units = "degrees_east"
         var_xlong.description = "LONGITUDE, WEST IS NEGATIVE"
-        var_xlong[:] = lon_grid
+        var_xlong[:, :] = np.ascontiguousarray(lon_grid)
 
         # Physical Chemistry & Weather Variables
         var_pm25 = ds.createVariable("PM2_5_DRY", "f4", ("Time", "south_north", "west_east"))
@@ -155,15 +155,15 @@ class WRFChemAdapter:
                     pblh_arr[t, i, j] = blh
                     rain_arr[t, i, j] = 0.0
 
-        var_pm25[:] = pm25_arr
-        var_pm10[:] = pm10_arr
-        var_o3[:] = o3_arr
-        var_no2[:] = no2_arr
-        var_u10[:] = u_arr
-        var_v10[:] = v_arr
-        var_t2[:] = t_arr
-        var_pblh[:] = pblh_arr
-        var_rainnc[:] = rain_arr
+        var_pm25[:, :, :] = np.ascontiguousarray(pm25_arr)
+        var_pm10[:, :, :] = np.ascontiguousarray(pm10_arr)
+        var_o3[:, :, :] = np.ascontiguousarray(o3_arr)
+        var_no2[:, :, :] = np.ascontiguousarray(no2_arr)
+        var_u10[:, :, :] = np.ascontiguousarray(u_arr)
+        var_v10[:, :, :] = np.ascontiguousarray(v_arr)
+        var_t2[:, :, :] = np.ascontiguousarray(t_arr)
+        var_pblh[:, :, :] = np.ascontiguousarray(pblh_arr)
+        var_rainnc[:, :, :] = np.ascontiguousarray(rain_arr)
 
         ds.close()
         return output_path

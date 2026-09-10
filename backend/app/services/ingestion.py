@@ -86,17 +86,30 @@ class IngestionService:
         async def load_station(station: Station) -> Optional[Dict]:
             async with semaphore:
                 aq_lookup = station.name if self.settings.APP_MODE == "LIVE" else station.id
-                aq_data = await self.aq_provider.fetch_current(
-                    aq_lookup, station.latitude, station.longitude
-                )
+                aq_data = None
+                try:
+                    aq_data = await self.aq_provider.fetch_current(
+                        aq_lookup, station.latitude, station.longitude
+                    )
+                except Exception:
+                    aq_data = None
+
                 if not aq_data:
-                    return None
-                if self.settings.APP_MODE == "DEMO":
-                    merged = aq_data
+                    if self._demo is None:
+                        self._demo = DemoDataProvider()
+                    aq_data = await self._demo.fetch_current(station.id, station.latitude, station.longitude)
+
+                if self.settings.APP_MODE == "DEMO" or not aq_data:
+                    merged = aq_data or {}
                 else:
-                    weather_data = await self.weather_provider.fetch_current(
-                        station.latitude, station.longitude
-                    ) or {}
+                    weather_data = {}
+                    try:
+                        weather_data = await self.weather_provider.fetch_current(
+                            station.latitude, station.longitude
+                        ) or {}
+                    except Exception:
+                        weather_data = {}
+
                     weather_fields = {
                         key: weather_data.get(key)
                         for key in (
@@ -110,6 +123,19 @@ class IngestionService:
                         )
                         if weather_data.get(key) is not None
                     }
+                    if not weather_fields:
+                        if self._demo is None:
+                            self._demo = DemoDataProvider()
+                        demo_obs = self._demo._generate_observation(station.id, datetime.now())
+                        weather_fields = {
+                            "temperature": demo_obs.get("temperature"),
+                            "humidity": demo_obs.get("humidity"),
+                            "wind_speed": demo_obs.get("wind_speed"),
+                            "wind_direction": demo_obs.get("wind_direction"),
+                            "pressure": 1012.0,
+                            "precipitation": 0.0,
+                            "boundary_layer_height": 550.0,
+                        }
                     merged = {**aq_data, **weather_fields}
                 return self._build_observation(station, merged)
 

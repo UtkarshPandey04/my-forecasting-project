@@ -22,6 +22,11 @@ router = APIRouter(prefix="/evaluation", tags=["evaluation"])
 _ACTIVE_MODEL_ID = "gnn_transformer_proposed"
 
 
+def get_active_model_id() -> str:
+    """Returns the currently active model ID."""
+    return _ACTIVE_MODEL_ID
+
+
 def _load_benchmark_data() -> Dict[str, Any]:
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
     benchmark_path = os.path.join(base_dir, "data", "experiments", "experiment_benchmark.json")

@@ -42,4 +42,5 @@ logs/
 *.png
 *.jpg
 scratch/
+pytest_out.txt
 

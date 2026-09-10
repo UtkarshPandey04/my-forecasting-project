@@ -96,6 +96,7 @@ export const api = {
   }) => fetchPostAPI<ScenarioResponse>('/api/v1/scenarios/simulate', params),
   getBlendedForecast: (stationId: string) => fetchAPI<BlendedForecastResponse>(`/api/v1/forecast/blended/${stationId}`),
   getWRFChemStatus: () => fetchAPI<WRFChemStatus>('/api/v1/wrfchem/status'),
+  getDisasterRisk: () => fetchAPI<DisasterRiskResponse>('/api/v1/disaster/risk'),
   queueResponseAction: (request: ResponseActionRequest) => fetchPostAPI<{ id: string; status: string; created_at: string }>('/api/v1/response/actions', request),
   getResponseActions: () => fetchAPI<{ actions: ResponseActionRequest[]; count: number }>('/api/v1/response/actions'),
   getMitigationPartners: () => fetchAPI<{ partners: MitigationPartner[]; count: number }>('/api/v1/mitigation/partners'),

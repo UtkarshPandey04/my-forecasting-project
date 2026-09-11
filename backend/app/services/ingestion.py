@@ -100,10 +100,16 @@ class IngestionService:
                 except Exception:
                     aq_data = None
 
-                if not aq_data:
+                if not aq_data or aq_data.get("pm25") is None:
                     if self._demo is None:
                         self._demo = DemoDataProvider()
-                    aq_data = await self._demo.fetch_current(station.id, station.latitude, station.longitude)
+                    demo_fallback = await self._demo.fetch_current(station.id, station.latitude, station.longitude)
+                    if not aq_data:
+                        aq_data = demo_fallback
+                    else:
+                        for k, v in demo_fallback.items():
+                            if aq_data.get(k) is None:
+                                aq_data[k] = v
 
                 if self.settings.APP_MODE == "DEMO" or not aq_data:
                     merged = aq_data or {}

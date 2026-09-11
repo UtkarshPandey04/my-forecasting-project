@@ -148,9 +148,6 @@ export default function WorkbenchPage() {
       }
 
       loadStationData('anand_vihar');
-      api.getObservations('anand_vihar')
-        .then(applyObservations)
-        .catch((err) => console.error('Failed to load selected-station observation:', err));
       api.getObservations()
         .then(applyObservations)
         .catch((err) => console.error('Failed to load observations:', err));

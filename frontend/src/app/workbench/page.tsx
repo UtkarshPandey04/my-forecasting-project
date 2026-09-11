@@ -113,7 +113,7 @@ export default function WorkbenchPage() {
       obsMap[obs.station_id] = obs;
     });
     setObservations((prev) => ({ ...prev, ...obsMap }));
-    if (obsRes.last_updated) setLastUpdated(obsRes.last_updated);
+    setLastUpdated(new Date().toISOString());
   };
 
   // Initial Load
@@ -186,12 +186,7 @@ export default function WorkbenchPage() {
     const interval = setInterval(async () => {
       try {
         const obsRes = await api.getObservations();
-        const obsMap: Record<string, Observation> = {};
-        obsRes.observations.forEach((o) => {
-          obsMap[o.station_id] = o;
-        });
-        setObservations(obsMap);
-        setLastUpdated(obsRes.last_updated);
+        applyObservations(obsRes);
       } catch (err) {
         console.error('Background refresh failed:', err);
       }

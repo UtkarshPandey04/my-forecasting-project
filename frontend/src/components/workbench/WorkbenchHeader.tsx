@@ -27,6 +27,24 @@ export default function WorkbenchHeader({
   onOpenAskAgent,
   onOpenDataSources
 }: WorkbenchHeaderProps) {
+  const [syncTime, setSyncTime] = useState<string>('');
+
+  React.useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setSyncTime(
+        now.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        })
+      );
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <header className="h-14 bg-[#070b12] border-b border-white/[0.08] px-4 flex items-center justify-between z-30 shrink-0 select-none">
       {/* Left: Brand & Breadcrumb */}
@@ -79,25 +97,9 @@ export default function WorkbenchHeader({
         </button>
 
         {/* Timestamp */}
-        <div className="hidden lg:flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+        <div className="hidden lg:flex items-center gap-1.5 text-[11px] font-mono text-slate-400" title="Synchronized with current time">
           <Clock className="w-3 h-3 text-slate-500" />
-          <span>
-            {(() => {
-              if (!lastUpdated) {
-                return `Sync: ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })} IST`;
-              }
-              try {
-                const normalized = lastUpdated.endsWith('Z') || lastUpdated.includes('+') ? lastUpdated : `${lastUpdated}Z`;
-                const d = new Date(normalized);
-                if (isNaN(d.getTime())) {
-                  return `Sync: ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })} IST`;
-                }
-                return `Sync: ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })} IST`;
-              } catch {
-                return 'Sync: Live';
-              }
-            })()}
-          </span>
+          <span>{syncTime ? `Sync: ${syncTime}` : 'Sync: Live'}</span>
         </div>
 
         {/* Mode Indicator */}

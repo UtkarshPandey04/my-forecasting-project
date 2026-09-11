@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.api.deps import get_db_session, get_app_settings
 from app.core.config import Settings
@@ -128,7 +128,7 @@ async def get_active_fires(
         count=len(fire_points),
         total_frp=total_frp,
         mode=settings.APP_MODE,
-        last_updated=datetime.now()
+        last_updated=datetime.now(timezone.utc)
     )
 
 

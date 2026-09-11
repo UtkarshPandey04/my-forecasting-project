@@ -15,8 +15,12 @@ export default function DataFreshness({ lastUpdated }: DataFreshnessProps) {
 
     const updateTimeAgo = () => {
       const now = new Date();
-      const updated = new Date(lastUpdated);
-      const diffInSeconds = Math.floor((now.getTime() - updated.getTime()) / 1000);
+      const normalized = lastUpdated.endsWith('Z') || lastUpdated.includes('+') ? lastUpdated : `${lastUpdated}Z`;
+      let updated = new Date(normalized);
+      if (isNaN(updated.getTime())) {
+        updated = new Date(lastUpdated);
+      }
+      const diffInSeconds = Math.max(0, Math.floor((now.getTime() - updated.getTime()) / 1000));
 
       if (diffInSeconds < 60) {
         setTimeAgo('just now');

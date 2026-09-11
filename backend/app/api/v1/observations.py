@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from typing import Optional
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 from app.api.deps import get_db_session, get_app_settings
 from app.core.config import Settings
 from app.schemas.observation import CurrentObservationsResponse
@@ -21,5 +21,5 @@ async def get_current_observations(
     return CurrentObservationsResponse(
         observations=observations,
         mode=settings.APP_MODE,
-        last_updated=datetime.now()
+        last_updated=datetime.now(timezone.utc)
     )

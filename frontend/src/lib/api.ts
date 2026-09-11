@@ -37,24 +37,48 @@ import {
   generateFallbackExplanation
 } from './fallbackData';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
 
-const localActionQueue: ResponseActionRequest[] = [
+function buildUrl(endpoint: string): string {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${API_BASE}${cleanEndpoint}`;
+}
+
+export interface QueuedResponseAction {
+  id: string;
+  action_type: string;
+  stakeholder: string;
+  station_id: string;
+  severity: string;
+  message: string;
+  source: string;
+  status: string;
+  created_at: string;
+}
+
+const localActionQueue: QueuedResponseAction[] = [
   {
+    id: 'ACT-INIT-01',
     action_type: 'anti_smog_gun_deployment',
     stakeholder: 'MCD / PWD Engineering',
     station_id: 'anand_vihar',
     severity: 'HIGH',
     message: 'Deploy 8 anti-smog mobile mist water canons along Anand Vihar ISBT & Ghazipur corridor.',
-    source: 'GRAP_STAGE_II_AUTOMATED'
+    source: 'GRAP_STAGE_II_AUTOMATED',
+    status: 'SENT',
+    created_at: new Date().toISOString()
   },
   {
+    id: 'ACT-INIT-02',
     action_type: 'advisory_broadcast',
     stakeholder: 'Delhi Traffic Police',
     station_id: 'punjabi_bagh',
     severity: 'MEDIUM',
     message: 'Enforce arterial traffic diversion for non-destined heavy commercial vehicles via EPE.',
-    source: 'INCIDENT_COMMAND'
+    source: 'INCIDENT_COMMAND',
+    status: 'SENT',
+    created_at: new Date().toISOString()
   }
 ];
 
@@ -219,7 +243,8 @@ async function fetchAPI<T>(endpoint: string): Promise<T> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(`${API_BASE}${endpoint}`, {
+    const url = buildUrl(endpoint);
+    const res = await fetch(url, {
       cache: 'no-store',
       signal: controller.signal
     });
@@ -239,7 +264,8 @@ async function fetchPostAPI<T>(endpoint: string, body: any): Promise<T> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(`${API_BASE}${endpoint}`, {
+    const url = buildUrl(endpoint);
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -255,20 +281,26 @@ async function fetchPostAPI<T>(endpoint: string, body: any): Promise<T> {
   } catch (err) {
     console.warn(`[AeroSense] POST request to ${endpoint} failed, executing optimistic fallback response.`);
     if (endpoint.includes('/response/actions')) {
-      const newAction: ResponseActionRequest = {
+      const newAction: QueuedResponseAction = {
+        id: 'ACT-' + Math.floor(Math.random() * 90000 + 10000),
         action_type: body.action_type || 'custom_dispatch',
         stakeholder: body.stakeholder || 'NCR Incident Command',
         station_id: body.station_id || 'anand_vihar',
         severity: body.severity || 'HIGH',
         message: body.message || 'Action dispatched by operator.',
-        source: body.source || 'WORKBENCH_CONSOLE'
+        source: body.source || 'WORKBENCH_CONSOLE',
+        status: 'SENT',
+        created_at: new Date().toISOString()
       };
       localActionQueue.unshift(newAction);
       return {
-        id: 'ACT-' + Math.floor(Math.random() * 90000 + 10000),
+        id: newAction.id,
         status: 'EXECUTED_LOGGED',
-        created_at: new Date().toISOString()
+        created_at: newAction.created_at
       } as unknown as T;
+    }
+    if (endpoint.includes('/intelligence/ask') || endpoint.includes('/atmospheric/ask')) {
+      return getFallbackForEndpoint<T>('/api/v1/intelligence/ask');
     }
     if (endpoint.includes('/mitigation/collection-requests')) {
       return {

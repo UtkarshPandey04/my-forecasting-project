@@ -17,7 +17,9 @@ export const getGrapStage = (aqi: number): GrapAssessment => {
   return { stage: 'I', label: 'Poor', minAqi: 201, color: 'amber', actions: ['Intensify road cleaning and inspections', 'Verify pollution-control compliance', 'Issue preventive citizen advisory'] };
 };
 
-export const firstGrapTrigger = (points: ForecastPoint[]): { point: ForecastPoint; assessment: GrapAssessment } | null => {
-  const point = points.find((item) => (item.aqi_predicted ?? 0) >= 201);
+export const firstGrapTrigger = (points?: ForecastPoint[] | null): { point: ForecastPoint; assessment: GrapAssessment } | null => {
+  if (!points || !Array.isArray(points) || points.length === 0) return null;
+  const point = points.find((item) => (item?.aqi_predicted ?? 0) >= 201);
   return point ? { point, assessment: getGrapStage(point.aqi_predicted ?? 0) } : null;
 };
+

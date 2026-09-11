@@ -221,7 +221,7 @@ export default function ResponseConsole({
     return stations.find((s) => s.id === stationId) || stations[0];
   }, [stations, stationId]);
 
-  const stationDisplayName = selectedStationObj?.name || stationId.replace(/_/g, ' ');
+  const stationDisplayName = selectedStationObj?.name || (stationId ? stationId.replace(/_/g, ' ') : 'Anand Vihar');
 
   // Mandate Checklist State
   const [enforcedMandates, setEnforcedMandates] = useState<Record<string, boolean>>({
@@ -364,11 +364,12 @@ export default function ResponseConsole({
   }, [activeMandateTab]);
 
   const filteredQueue = useMemo(() => {
+    if (!actionQueue || !Array.isArray(actionQueue)) return [];
     if (queueFilter === 'all') return actionQueue;
     return actionQueue.filter(
       (a) =>
-        a.stakeholder.toLowerCase().includes(queueFilter.toLowerCase()) ||
-        a.action_type.toLowerCase().includes(queueFilter.toLowerCase())
+        (a.stakeholder || '').toLowerCase().includes(queueFilter.toLowerCase()) ||
+        (a.action_type || '').toLowerCase().includes(queueFilter.toLowerCase())
     );
   }, [actionQueue, queueFilter]);
 
@@ -875,13 +876,13 @@ export default function ResponseConsole({
                   filteredQueue.map((item, idx) => (
                     <tr key={idx} className="hover:bg-white/[0.02] transition">
                       <td className="p-3 font-mono text-slate-400 font-medium text-[11px]">
-                        {item.id.slice(0, 10)}
+                        {(item.id || `ACT-${idx + 1}`).slice(0, 10)}
                       </td>
                       <td className="p-3 font-semibold text-white capitalize">
-                        {item.stakeholder.replace(/_/g, ' ')}
+                        {(item.stakeholder || 'general').replace(/_/g, ' ')}
                       </td>
                       <td className="p-3 font-mono text-slate-300 text-[11px] uppercase">
-                        {item.station_id.replace(/_/g, ' ')}
+                        {(item.station_id || stationId || 'anand_vihar').replace(/_/g, ' ')}
                       </td>
                       <td className="p-3">
                         <span className="rounded px-2 py-0.5 text-[9px] font-mono font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase">

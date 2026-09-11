@@ -47,6 +47,16 @@ export default function WorkbenchPage() {
   const [currentView, setCurrentView] = useState<WorkbenchView>('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const v = params.get('view') as WorkbenchView | null;
+      if (v && ['overview', 'forecast', 'map', 'drivers', 'what-if', 'evaluation', 'datasources', 'research', 'incident-command', 'response-console'].includes(v)) {
+        setCurrentView(v);
+      }
+    }
+  }, []);
+
   // Core Data States
   const [stations, setStations] = useState<Station[]>([]);
   const [observations, setObservations] = useState<Record<string, Observation>>({});

@@ -13,6 +13,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional, Any
 import numpy as np
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*Setting the shape on a NumPy array.*")
+
 try:
     import netCDF4 as nc
     HAS_NETCDF = True

@@ -48,10 +48,12 @@ async def get_disaster_risk(
 
     fires = await firms.fetch_active_fires()
     observations = []
+    import asyncio
     try:
-        observations = await IngestionService(db, settings).get_current_observations("anand_vihar")
-        extra = await IngestionService(db, settings).get_current_observations("ito")
-        observations.extend(extra)
+        observations = await asyncio.wait_for(
+            IngestionService(db, settings).get_current_observations("anand_vihar"),
+            timeout=2.5
+        )
     except Exception:
         observations = []
 
@@ -64,11 +66,21 @@ async def get_disaster_risk(
     irs = calculate_inversion_risk(temp, humidity, ws, blh, datetime.now().hour)
     wti = calculate_transport_indicator(ws, wd, len(fires), sum(f.get("frp", 0.0) for f in fires))
 
+    from app.services.disaster_telemetry import get_telemetry_mesh_status
+    mesh_status = get_telemetry_mesh_status(
+        settings_mode=settings.APP_MODE,
+        meteo=meteo,
+        fires=fires,
+        observations=observations,
+        firms_configured=bool(settings.FIRMS_MAP_KEY)
+    )
+
     assessment = assess_disaster_risk(
         meteo=meteo,
         fires=fires,
         observations=observations,
         indices={"ventilation_index": vi, "inversion_risk_score": irs, "wind_transport_indicator": wti},
+        telemetry_mesh=mesh_status,
         mode=settings.APP_MODE,
     )
     assessment["generated_at"] = datetime.now(timezone.utc).isoformat()
@@ -82,4 +94,35 @@ async def get_disaster_risk(
         }
         for fire in fires[:40]
     ]
+    assessment["telemetry_mesh"] = mesh_status
     return assessment
+
+
+@router.get("/telemetry-mesh")
+async def get_disaster_telemetry_mesh(
+    db: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_app_settings),
+):
+    """Returns real-time linked status, endpoints, latency, and sample payloads for all 11 mesh data sources."""
+    wx = _weather(settings)
+    firms = _firms(settings)
+    meteo = await wx.fetch_current(28.6139, 77.2090) or {}
+    fires = await firms.fetch_active_fires()
+    import asyncio
+    try:
+        observations = await asyncio.wait_for(
+            IngestionService(db, settings).get_current_observations("anand_vihar"),
+            timeout=2.5
+        )
+    except Exception:
+        observations = []
+
+    from app.services.disaster_telemetry import get_telemetry_mesh_status
+    return get_telemetry_mesh_status(
+        settings_mode=settings.APP_MODE,
+        meteo=meteo,
+        fires=fires,
+        observations=observations,
+        firms_configured=bool(settings.FIRMS_MAP_KEY)
+    )
+

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     LOG_LEVEL: str = "INFO"
 
-    model_config = SettingsConfigDict(env_file=BACKEND_DIR / ".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=[BACKEND_DIR.parent / ".env", BACKEND_DIR / ".env"], extra="ignore")
 
 @lru_cache
 def get_settings() -> Settings:

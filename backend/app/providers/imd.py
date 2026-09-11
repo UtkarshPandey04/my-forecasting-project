@@ -1,15 +1,25 @@
+import asyncio
 import httpx
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from .base import WeatherDataProvider
 
-_CACHE_TTL = timedelta(minutes=5)
+_CACHE_TTL = timedelta(minutes=15)
 _weather_cache: Dict[Tuple[float, float], Tuple[datetime, Dict]] = {}
+_in_flight_locks: Dict[Tuple[float, float], asyncio.Lock] = {}
+_global_lock = asyncio.Lock()
 
 
 class IMDWeatherProvider(WeatherDataProvider):
     def __init__(self):
         self.base_url = "https://api.open-meteo.com/v1/forecast"
+
+    def _get_fallback_weather(self) -> Optional[Dict]:
+        """Return the most recent cached Delhi-area reading if available."""
+        for expiry, data in _weather_cache.values():
+            if data:
+                return data
+        return None
 
     @staticmethod
     def _normalize(current: Dict, hourly: Optional[Dict] = None) -> Dict:
@@ -73,43 +83,56 @@ class IMDWeatherProvider(WeatherDataProvider):
         }
 
     async def fetch_current(self, lat: float, lon: float) -> Optional[Dict]:
-        cache_key = (round(lat, 1), round(lon, 1))
+        grid_lat = round(round(lat / 0.2) * 0.2, 2)
+        grid_lon = round(round(lon / 0.2) * 0.2, 2)
+        cache_key = (grid_lat, grid_lon)
         cached = _weather_cache.get(cache_key)
         if cached and datetime.now() < cached[0]:
             return cached[1]
 
-        try:
-            timeout = httpx.Timeout(connect=3.0, read=8.0, write=3.0, pool=3.0)
-            async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
-                response = await client.get(
-                    self.base_url,
-                    params={
-                        "latitude": lat,
-                        "longitude": lon,
-                        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,surface_pressure,precipitation",
-                        "hourly": "boundary_layer_height,precipitation,temperature_2m,relative_humidity_2m,wind_speed_10m",
-                        "forecast_days": 3,
-                        "wind_speed_unit": "ms",
-                        "timezone": "Asia/Kolkata",
-                    },
-                )
-                response.raise_for_status()
-                data = response.json()
-                current = data.get("current")
-                if not current:
-                    return None
-                normalized = self._normalize(current, data.get("hourly"))
-                _weather_cache[cache_key] = (datetime.now() + _CACHE_TTL, normalized)
-                return normalized
-        except Exception:
-            return None
+        async with _global_lock:
+            if cache_key not in _in_flight_locks:
+                _in_flight_locks[cache_key] = asyncio.Lock()
+            coord_lock = _in_flight_locks[cache_key]
+
+        async with coord_lock:
+            # Re-check cache under lock
+            cached = _weather_cache.get(cache_key)
+            if cached and datetime.now() < cached[0]:
+                return cached[1]
+
+            try:
+                timeout = httpx.Timeout(connect=3.0, read=5.0, write=3.0, pool=3.0)
+                async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+                    response = await client.get(
+                        self.base_url,
+                        params={
+                            "latitude": grid_lat,
+                            "longitude": grid_lon,
+                            "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,surface_pressure,precipitation",
+                            "hourly": "boundary_layer_height,precipitation,temperature_2m,relative_humidity_2m,wind_speed_10m",
+                            "forecast_days": 3,
+                            "wind_speed_unit": "ms",
+                            "timezone": "Asia/Kolkata",
+                        },
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    current = data.get("current")
+                    if not current:
+                        return self._get_fallback_weather()
+                    normalized = self._normalize(current, data.get("hourly"))
+                    _weather_cache[cache_key] = (datetime.now() + _CACHE_TTL, normalized)
+                    return normalized
+            except Exception:
+                return self._get_fallback_weather()
 
     async def fetch_forecast(self, lat: float, lon: float, hours: int) -> List[Dict]:
         return []
 
     async def check_connection(self) -> bool:
         try:
-            timeout = httpx.Timeout(connect=3.0, read=5.0, write=3.0, pool=3.0)
+            timeout = httpx.Timeout(connect=5.0, read=8.0, write=5.0, pool=5.0)
             async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
                 response = await client.get(
                     self.base_url,

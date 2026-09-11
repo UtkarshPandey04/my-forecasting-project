@@ -400,5 +400,51 @@ export interface DisasterRiskResponse {
   hazards: DisasterHazard[];
   zones: DisasterZone[];
   outlook: { hour_offset: number; flood: number; heat: number | null; label: string }[];
+  telemetry_mesh?: TelemetryMeshResponse;
+  ai_insights?: DisasterAIInsight;
+}
+
+export interface VulnerableWardItem {
+  ward_name: string;
+  vulnerability_rank: number;
+  dvm_score: number;
+  primary_threat: string;
+  affected_est: string;
+  evacuation_priority: string;
+}
+
+export interface DisasterAIInsight {
+  compound_coupling_index: number;
+  compound_risk_level: string;
+  synergy_narrative: string;
+  ai_confidence_pct: number;
+  telemetry_health_score: number;
+  risk_trajectory_trend: 'ESCALATING' | 'STABLE' | 'DE-ESCALATING';
+  trajectory_forecast: { horizon: string; score: number; level: string }[];
+  vulnerable_ward_hotspots: VulnerableWardItem[];
+}
+
+export interface TelemetrySourceItem {
+  id: string;
+  name: string;
+  provider: string;
+  href: string;
+  endpoint_url: string;
+  live: boolean;
+  status: string;
+  latency_ms: number;
+  last_sync: string;
+  parameters_monitored: string[];
+  current_metrics: Record<string, string | number>;
+  summary: string;
+  impact_on_model: string;
+  raw_payload: Record<string, any>;
+}
+
+export interface TelemetryMeshResponse {
+  generated_at: string;
+  total_sources: number;
+  live_sources_count: number;
+  sources: TelemetrySourceItem[];
 }
 

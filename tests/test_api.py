@@ -116,3 +116,41 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert "station_count" in data
+
+
+class TestDisasterRiskEndpoint:
+    def test_disaster_risk(self):
+        response = client.get("/api/v1/disaster/risk")
+        assert response.status_code == 200
+        data = response.json()
+        assert "overall_score" in data
+        assert "hazards" in data
+        assert "telemetry_mesh" in data
+        assert data["telemetry_mesh"]["total_sources"] == 11
+        assert len(data["telemetry_mesh"]["sources"]) == 11
+
+    def test_telemetry_mesh_endpoint(self):
+        response = client.get("/api/v1/disaster/telemetry-mesh")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_sources"] == 11
+        assert data["live_sources_count"] == 11
+        sources = data["sources"]
+        source_names = [s["name"] for s in sources]
+        assert "Weather + forecast" in source_names
+        assert "Fire / stubble burning" in source_names
+        assert "Rainfall" in source_names
+        assert "River / water level" in source_names
+        assert "Public / social reports" in source_names
+        assert "Road + infrastructure" in source_names
+        assert "Soil + terrain" in source_names
+        assert "Satellite imagery" in source_names
+        assert "Population density" in source_names
+        assert "Historical disaster data" in source_names
+        assert "Citizen reports" in source_names
+        for s in sources:
+            assert s["live"] is True
+            assert s["status"] in ("CONNECTED", "DEMO_CONNECTED")
+            assert "latency_ms" in s
+            assert "endpoint_url" in s
+            assert "raw_payload" in s

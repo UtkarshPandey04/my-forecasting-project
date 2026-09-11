@@ -81,6 +81,12 @@ class IngestionService:
         if self.settings.APP_MODE == "LIVE" and hasattr(self.aq_provider, "_fetch_records"):
             await self.aq_provider._fetch_records()
 
+        if self.settings.APP_MODE == "LIVE" and hasattr(self.weather_provider, "fetch_current"):
+            try:
+                await self.weather_provider.fetch_current(28.61, 77.21)
+            except Exception:
+                pass
+
         semaphore = asyncio.Semaphore(8)
 
         async def load_station(station: Station) -> Optional[Dict]:

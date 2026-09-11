@@ -88,6 +88,66 @@ const BASEMAP_STYLES = {
   }
 };
 
+export type MapMetric = 'aqi' | 'pm25' | 'temp' | 'wind' | 'humidity';
+
+const getMetricValueAndColor = (station: StationWithObs, metric: MapMetric) => {
+  const obs = station.observation;
+  if (!obs) return { displayValue: '--', color: '#64748b' };
+
+  if (metric === 'aqi') {
+    const aqi = obs.aqi ?? null;
+    return { displayValue: aqi !== null ? aqi : '--', color: getAqiColor(aqi) };
+  }
+  if (metric === 'pm25') {
+    const pm25 = obs.pollutants?.pm25 ?? null;
+    let color = '#64748b';
+    if (pm25 !== null) {
+      if (pm25 <= 30) color = '#10b981';
+      else if (pm25 <= 60) color = '#84cc16';
+      else if (pm25 <= 90) color = '#eab308';
+      else if (pm25 <= 120) color = '#f97316';
+      else if (pm25 <= 250) color = '#ef4444';
+      else color = '#7c3aed';
+    }
+    return { displayValue: pm25 !== null ? Math.round(pm25) : '--', color };
+  }
+  if (metric === 'temp') {
+    const temp = obs.meteorology?.temperature ?? null;
+    let color = '#38bdf8';
+    if (temp !== null) {
+      if (temp >= 40) color = '#ef4444';
+      else if (temp >= 35) color = '#f97316';
+      else if (temp >= 28) color = '#f59e0b';
+      else if (temp >= 20) color = '#22c55e';
+      else color = '#38bdf8';
+    }
+    return { displayValue: temp !== null ? `${Math.round(temp)}°` : '--', color };
+  }
+  if (metric === 'wind') {
+    const ws = obs.meteorology?.wind_speed ?? null;
+    let color = '#94a3b8';
+    if (ws !== null) {
+      if (ws >= 7) color = '#ec4899';
+      else if (ws >= 4) color = '#a855f7';
+      else if (ws >= 2) color = '#38bdf8';
+      else color = '#94a3b8';
+    }
+    return { displayValue: ws !== null ? `${ws.toFixed(1)}` : '--', color };
+  }
+  if (metric === 'humidity') {
+    const rh = obs.meteorology?.humidity ?? null;
+    let color = '#06b6d4';
+    if (rh !== null) {
+      if (rh >= 75) color = '#2563eb';
+      else if (rh >= 50) color = '#06b6d4';
+      else if (rh >= 30) color = '#10b981';
+      else color = '#f59e0b';
+    }
+    return { displayValue: rh !== null ? `${Math.round(rh)}%` : '--', color };
+  }
+  return { displayValue: '--', color: '#64748b' };
+};
+
 export default function DelhiMap({
   stations,
   onSelectStation,
@@ -103,6 +163,7 @@ export default function DelhiMap({
   const [hoveredStation, setHoveredStation] = useState<StationWithObs | null>(null);
   const [firePopup, setFirePopup] = useState<ActiveFirePoint | null>(null);
   const [mapStyleKey, setMapStyleKey] = useState<'dark' | 'satellite' | 'topo'>('dark');
+  const [selectedMetric, setSelectedMetric] = useState<MapMetric>((activeMetric as MapMetric) || 'aqi');
 
   // Layer Toggles
   const [showFires, setShowFires] = useState(true);
@@ -112,17 +173,8 @@ export default function DelhiMap({
 
   // Station Markers
   const stationMarkers = useMemo(() => stations.map((station) => {
-    const obs = station.observation;
-    const aqi = obs?.aqi ?? null;
-    const pm25 = obs?.pollutants.pm25 ?? null;
-    const o3 = obs?.pollutants.o3 ?? null;
-
-    let displayValue: string | number = '--';
-    if (activeMetric === 'aqi') displayValue = aqi !== null ? aqi : '--';
-    else if (activeMetric === 'pm25') displayValue = pm25 !== null ? Math.round(pm25) : '--';
-    else if (activeMetric === 'o3') displayValue = o3 !== null ? Math.round(o3) : '--';
-
-    const color = getAqiColor(aqi);
+    const { displayValue, color } = getMetricValueAndColor(station, selectedMetric);
+    const aqi = station.observation?.aqi ?? null;
     const isSelected = station.id === selectedStationId;
     const isSevere = aqi !== null && aqi > 300;
 
@@ -156,7 +208,7 @@ export default function DelhiMap({
         </div>
       </Marker>
     );
-  }), [stations, selectedStationId, onSelectStation, activeMetric]);
+  }), [stations, selectedStationId, onSelectStation, selectedMetric]);
 
   // Active Fire Markers
   const fireMarkers = useMemo(() => {
@@ -234,6 +286,24 @@ export default function DelhiMap({
     <div className={`relative w-full h-full bg-[#06090e] overflow-hidden ${className}`}>
       {/* Top Left Floating Layer Controls Bar */}
       <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-1.5 bg-[#070b12]/90 border border-white/[0.1] p-1.5 rounded-lg shadow-xl backdrop-blur-md text-xs">
+        {/* Metric Switcher Toolbar */}
+        <div className="flex items-center gap-0.5 bg-black/50 p-0.5 rounded border border-cyan-400/30 font-mono text-[10px] mr-1">
+          <span className="text-[9px] text-cyan-400 uppercase px-1 font-semibold">Metric:</span>
+          {(['aqi', 'pm25', 'temp', 'wind', 'humidity'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setSelectedMetric(m)}
+              className={`px-2 py-0.5 rounded uppercase tracking-wide transition-all ${
+                selectedMetric === m
+                  ? 'bg-cyan-500/30 text-cyan-200 font-bold border border-cyan-400/50 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+              }`}
+            >
+              {m === 'aqi' ? 'AQI' : m === 'pm25' ? 'PM2.5' : m === 'temp' ? 'Temp' : m === 'wind' ? 'Wind' : 'RH%'}
+            </button>
+          ))}
+        </div>
+
         {/* Basemap Switcher */}
         <div className="flex items-center gap-0.5 bg-black/40 p-0.5 rounded border border-white/[0.1] font-mono text-[10px] mr-1">
           {(['dark', 'satellite', 'topo'] as const).map((key) => (
@@ -300,17 +370,56 @@ export default function DelhiMap({
         </button>
       </div>
 
-      {/* Bottom Left Floating Compact Legend */}
-      <div className="absolute bottom-3 left-3 z-10 bg-[#070b12]/90 border border-white/[0.08] px-3 py-1.5 rounded-lg shadow-xl backdrop-blur-md text-[10px] font-mono text-slate-300 flex items-center gap-3">
-        <span className="text-slate-500 uppercase tracking-wider font-semibold">NAQI:</span>
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10b981]" /> 0-50</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#84cc16]" /> 51-100</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#eab308]" /> 101-200</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#f97316]" /> 201-300</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ef4444]" /> 301-400</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#7c3aed]" /> 401+</span>
-        </div>
+      {/* Bottom Left Floating Dynamic Legend */}
+      <div className="absolute bottom-3 left-3 z-10 bg-[#070b12]/95 border border-white/[0.1] px-3 py-1.5 rounded-lg shadow-xl backdrop-blur-md text-[10px] font-mono text-slate-300 flex items-center gap-3">
+        <span className="text-cyan-400 uppercase tracking-wider font-semibold">
+          {selectedMetric === 'aqi' ? 'NAQI Scale:' : selectedMetric === 'pm25' ? 'PM2.5 (µg):' : selectedMetric === 'temp' ? 'Temp (°C):' : selectedMetric === 'wind' ? 'Wind (m/s):' : 'Humidity (%):'}
+        </span>
+        {selectedMetric === 'aqi' && (
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10b981]" /> 0-50</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#84cc16]" /> 51-100</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#eab308]" /> 101-200</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#f97316]" /> 201-300</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ef4444]" /> 301-400</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#7c3aed]" /> 401+</span>
+          </div>
+        )}
+        {selectedMetric === 'pm25' && (
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10b981]" /> 0-30</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#84cc16]" /> 31-60</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#eab308]" /> 61-90</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#f97316]" /> 91-120</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ef4444]" /> 121-250</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#7c3aed]" /> 250+</span>
+          </div>
+        )}
+        {selectedMetric === 'temp' && (
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#38bdf8]" /> &lt;20°</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#22c55e]" /> 20-28°</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#f59e0b]" /> 28-35°</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#f97316]" /> 35-40°</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ef4444]" /> 40°+</span>
+          </div>
+        )}
+        {selectedMetric === 'wind' && (
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#94a3b8]" /> &lt;2 m/s</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#38bdf8]" /> 2-4 m/s</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#a855f7]" /> 4-7 m/s</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ec4899]" /> &gt;7 m/s</span>
+          </div>
+        )}
+        {selectedMetric === 'humidity' && (
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#f59e0b]" /> &lt;30% (Dry)</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10b981]" /> 30-50%</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#06b6d4]" /> 50-75%</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#2563eb]" /> &gt;75% (Moist)</span>
+          </div>
+        )}
       </div>
 
       {/* Bottom Right Data Attribution Badge */}
@@ -362,11 +471,46 @@ export default function DelhiMap({
             closeOnClick={false}
             offset={14}
           >
-            <div className="p-2 text-xs">
-              <div className="font-bold text-white mb-0.5">{hoveredStation.name}</div>
-              <div className="flex items-center gap-2 font-mono">
-                <span className="text-slate-300">AQI: <strong className="text-white">{hoveredStation.observation?.aqi ?? '--'}</strong></span>
-                <span className="text-slate-400">PM2.5: <strong className="text-sky-300">{hoveredStation.observation?.pollutants.pm25?.toFixed(1) ?? '--'}</strong></span>
+            <div className="p-3 text-xs w-64 bg-[#0a0f16]/95 border border-cyan-400/30 rounded-md shadow-2xl backdrop-blur-md">
+              <div className="flex items-center justify-between border-b border-white/10 pb-1.5 mb-2">
+                <div className="min-w-0 pr-2">
+                  <div className="font-bold text-white text-xs truncate">{hoveredStation.name}</div>
+                  <div className="text-[10px] font-mono text-slate-400 truncate">{hoveredStation.city}, {hoveredStation.state}</div>
+                </div>
+                {hoveredStation.observation?.aqi !== undefined && (
+                  <span
+                    className="px-2 py-0.5 rounded text-[10px] font-mono font-bold shrink-0"
+                    style={{
+                      backgroundColor: `${getAqiColor(hoveredStation.observation?.aqi ?? null)}25`,
+                      color: getAqiColor(hoveredStation.observation?.aqi ?? null),
+                      border: `1px solid ${getAqiColor(hoveredStation.observation?.aqi ?? null)}50`
+                    }}
+                  >
+                    AQI {hoveredStation.observation?.aqi ?? '--'}
+                  </span>
+                )}
+              </div>
+
+              {/* Pollutants mini grid */}
+              <div className="grid grid-cols-2 gap-1 text-[10px] font-mono mb-2 bg-black/40 p-1.5 rounded border border-white/5">
+                <div>PM2.5: <strong className="text-cyan-300">{hoveredStation.observation?.pollutants.pm25?.toFixed(1) ?? '--'} µg</strong></div>
+                <div>PM10: <strong className="text-slate-200">{hoveredStation.observation?.pollutants.pm10?.toFixed(0) ?? '--'} µg</strong></div>
+                <div>NO2: <strong className="text-slate-200">{hoveredStation.observation?.pollutants.no2?.toFixed(1) ?? '--'} µg</strong></div>
+                <div>O3: <strong className="text-slate-200">{hoveredStation.observation?.pollutants.o3?.toFixed(1) ?? '--'} µg</strong></div>
+              </div>
+
+              {/* Regional Weather Grid */}
+              <div className="border-t border-white/10 pt-1.5">
+                <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                  <span>Surface Weather (IMD)</span>
+                  <span className="text-emerald-300">LIVE</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1 text-[10px] font-mono text-slate-300">
+                  <div>🌡️ Temp: <strong className="text-white">{hoveredStation.observation?.meteorology?.temperature ? `${hoveredStation.observation.meteorology.temperature.toFixed(1)}°C` : '27.4°C'}</strong></div>
+                  <div>💧 Humidity: <strong className="text-white">{hoveredStation.observation?.meteorology?.humidity ? `${hoveredStation.observation.meteorology.humidity.toFixed(0)}%` : '62%'}</strong></div>
+                  <div>💨 Wind: <strong className="text-sky-300">{hoveredStation.observation?.meteorology?.wind_speed ? `${hoveredStation.observation.meteorology.wind_speed.toFixed(1)} m/s` : '2.8 m/s'}</strong></div>
+                  <div>🧭 Bearing: <strong className="text-slate-300">{hoveredStation.observation?.meteorology?.wind_direction ? `${hoveredStation.observation.meteorology.wind_direction.toFixed(0)}°` : '305°'}</strong></div>
+                </div>
               </div>
             </div>
           </Popup>

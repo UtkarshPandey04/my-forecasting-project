@@ -4,15 +4,24 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 from .config import get_settings
 
+from pathlib import Path
+
 settings = get_settings()
 
-db_dir = os.path.dirname(settings.DATABASE_URL.replace("sqlite:///", ""))
+db_url = settings.DATABASE_URL
+if db_url.startswith("sqlite:///./") or db_url.startswith("sqlite:////./"):
+    rel_path = db_url.replace("sqlite:////./", "").replace("sqlite:///./", "")
+    project_root = Path(__file__).resolve().parents[3]
+    abs_db_path = project_root / rel_path
+    db_url = f"sqlite:///{abs_db_path.as_posix()}"
+
+db_dir = os.path.dirname(db_url.replace("sqlite:///", ""))
 if db_dir and not os.path.exists(db_dir):
     os.makedirs(db_dir, exist_ok=True)
 
 engine = create_engine(
-    settings.DATABASE_URL, 
-    connect_args={"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
+    db_url, 
+    connect_args={"check_same_thread": False} if db_url.startswith("sqlite") else {}
 )
 
 if settings.DATABASE_URL.startswith("sqlite"):

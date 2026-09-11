@@ -91,13 +91,12 @@ Classifies atmospheric state into 6 physics-guided regimes with confidence scori
 #### 1. Backend (FastAPI)
 ```bash
 cd backend
-python -m venv venv
 venv\Scripts\activate          # On Linux/macOS: source venv/bin/activate
 pip install -r requirements.txt
-python -m uvicorn backend.app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8000   # Or from project root: python -m uvicorn backend.app.main:app --reload --port 8000
 ```
 - Interactive Swagger API Docs: `http://127.0.0.1:8000/docs`
-- Health Endpoint: `http://127.0.0.1:8000/api/v1/health`
+- Health Endpoint:             `http://127.0.0.1:8000/api/v1/health`
 
 #### 2. Frontend (Next.js 16)
 ```bash

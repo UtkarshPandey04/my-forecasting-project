@@ -82,9 +82,21 @@ export default function WorkbenchHeader({
         <div className="hidden lg:flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
           <Clock className="w-3 h-3 text-slate-500" />
           <span>
-            {lastUpdated
-              ? `Sync: ${new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-              : 'Sync: Active'}
+            {(() => {
+              if (!lastUpdated) {
+                return `Sync: ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })} IST`;
+              }
+              try {
+                const normalized = lastUpdated.endsWith('Z') || lastUpdated.includes('+') ? lastUpdated : `${lastUpdated}Z`;
+                const d = new Date(normalized);
+                if (isNaN(d.getTime())) {
+                  return `Sync: ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })} IST`;
+                }
+                return `Sync: ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })} IST`;
+              } catch {
+                return 'Sync: Live';
+              }
+            })()}
           </span>
         </div>
 

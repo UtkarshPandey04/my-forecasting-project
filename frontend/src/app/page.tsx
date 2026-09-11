@@ -60,7 +60,7 @@ export default function LandingPage() {
               </Link>
 
               <a
-                href="https://github.com/Sarthak752008/Air-Pollution-Weather-Coupled-Forecasting-System"
+                href="https://github.com/UtkarshPandey04/my-forecasting-project"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-5 py-3 text-sm font-medium text-slate-300 hover:text-white border border-white/10 hover:border-white/25 rounded-lg transition-all bg-white/[0.02] hover:bg-white/[0.05]"
@@ -467,7 +467,7 @@ export default function LandingPage() {
             </Link>
 
             <a
-              href="https://github.com/Sarthak752008/Air-Pollution-Weather-Coupled-Forecasting-System"
+              href="https://github.com/UtkarshPandey04/my-forecasting-project"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-6 py-3.5 text-sm font-medium text-slate-300 hover:text-white border border-white/10 hover:border-white/20 rounded-lg transition-all bg-white/[0.02]"
@@ -498,7 +498,7 @@ export default function LandingPage() {
             <span>SIH26082</span>
             <span>Ministry of Earth Sciences</span>
             <a
-              href="https://github.com/Sarthak752008/Air-Pollution-Weather-Coupled-Forecasting-System"
+              href="https://github.com/UtkarshPandey04/my-forecasting-project"
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-300 hover:text-white flex items-center gap-1"

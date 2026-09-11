@@ -61,7 +61,7 @@ export default function LandingNav() {
         {/* Right Action CTAs */}
         <div className="flex items-center gap-3">
           <a
-            href="https://github.com/Sarthak752008/Air-Pollution-Weather-Coupled-Forecasting-System"
+            href="https://github.com/UtkarshPandey04/my-forecasting-project"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-300 hover:text-white border border-white/10 hover:border-white/20 rounded-md transition-all bg-white/[0.02] hover:bg-white/[0.05]"

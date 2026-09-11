@@ -2,17 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import {
-  ArrowRight,
-  Check,
-  ClipboardList,
-  ExternalLink,
-  HeartPulse,
-  Landmark,
-  School,
   ShieldAlert,
-  Truck,
-  Users,
-  Activity,
   AlertTriangle,
   Radio,
   Send,
@@ -22,24 +12,35 @@ import {
   RefreshCw,
   Clock,
   Sparkles,
-  PhoneCall,
-  Megaphone,
-  Filter,
-  Shield,
-  FileText,
-  BadgeCheck,
+  Users,
+  School,
+  Landmark,
+  Truck,
+  HeartPulse,
+  ClipboardList,
   CheckSquare,
-  Square
+  Square,
+  FileText,
+  MapPin,
+  ChevronDown,
+  Info,
+  Car,
+  Wind,
+  Layers,
+  Building2,
+  AlertCircle
 } from 'lucide-react';
-import { ForecastResponse, Observation } from '@/lib/types';
+import { ForecastResponse, Observation, Station } from '@/lib/types';
 import { firstGrapTrigger, getGrapStage, GrapAssessment } from '@/lib/grap';
-import { api, MitigationPartner } from '@/lib/api';
+import { api } from '@/lib/api';
 
 interface ResponseConsoleProps {
   forecast: ForecastResponse | null;
   observation: Observation | null;
   stationId: string;
-  onOpenWhatIf: () => void;
+  stations?: Station[];
+  onSelectStation?: (stationId: string) => void;
+  onOpenWhatIf?: () => void;
 }
 
 interface QueuedAction {
@@ -54,61 +55,84 @@ interface QueuedAction {
   created_at: string;
 }
 
-const STATUTORY_CAQM_MANDATES = [
+interface StatutoryMandate {
+  id: string;
+  stage: string;
+  category: 'Dust & Roads' | 'Traffic & Transit' | 'Energy & Boilers' | 'Industry & Construction';
+  title: string;
+  desc: string;
+  authority: string;
+  impactNote: string;
+}
+
+const STATUTORY_CAQM_MANDATES: StatutoryMandate[] = [
   {
     id: 'mandate-1',
     stage: 'II',
-    title: 'Mechanized Sweeping & Water Sprinkling',
-    desc: 'Intensify vacuum street sweeping and deploy mobile water misting trucks on heavy-traffic corridors.',
-    authority: 'MCD / NDMC / PWD'
+    category: 'Dust & Roads',
+    title: 'Vacuum Road Sweeping & Water Sprinkling',
+    desc: 'Run mechanized road vacuum sweepers daily and mist water on high-traffic roads to keep dust settled.',
+    authority: 'Municipal Corporations (MCD / NDMC / PWD)',
+    impactNote: 'Reduces re-suspended road dust particles by up to 35% along busy roads.'
   },
   {
     id: 'mandate-2',
     stage: 'II',
-    title: 'Diesel Generator (DG) Set Restriction',
-    desc: 'Strict prohibition on diesel generators across commercial & residential complexes except emergency health facilities.',
-    authority: 'DPCC Compliance'
+    category: 'Energy & Boilers',
+    title: 'Diesel Generator Restrictions',
+    desc: 'Prohibit diesel generator sets in commercial complexes, malls, and residential buildings (except hospitals).',
+    authority: 'DPCC Environmental Enforcement',
+    impactNote: 'Stops concentrated soot and nitrogen oxide emissions in dense residential areas.'
   },
   {
     id: 'mandate-3',
-    stage: 'III',
-    title: 'Construction & Demolition (C&D) Activity Halt',
-    desc: 'Enforce complete shutdown on earthwork, piling, excavation, and dry stone crushing across NCT Delhi.',
-    authority: 'Municipal Enforcement'
+    stage: 'II',
+    category: 'Traffic & Transit',
+    title: 'Increase Metro & Public Bus Frequencies',
+    desc: 'Run extra metro train trips and add CNG feeder buses to encourage people to leave cars at home.',
+    authority: 'Delhi Transport Dept / DMRC',
+    impactNote: 'Helps commuters travel affordably without contributing to peak-hour traffic exhaust.'
   },
   {
     id: 'mandate-4',
-    stage: 'II',
-    title: 'Intensify Public Transit & Metro Frequencies',
-    desc: 'Augment CNG bus fleet frequency and introduce differential parking tariffs to discourage private vehicle use.',
-    authority: 'Transport Dept / DMRC'
+    stage: 'III',
+    category: 'Industry & Construction',
+    title: 'Construction & Demolition Work Halt',
+    desc: 'Strictly stop all earth excavation, piling, dry stone cutting, and building demolition activities.',
+    authority: 'Municipal & Building Enforcement Squads',
+    impactNote: 'Eliminates primary coarse particulate emissions (PM10) across neighborhoods.'
   },
   {
     id: 'mandate-5',
     stage: 'III',
-    title: 'Heavy Commercial Vehicle Interception',
-    desc: 'Divert non-essential BS-III petrol & BS-IV diesel goods carriers to Eastern/Western Peripheral Expressways.',
-    authority: 'Traffic Police'
+    category: 'Traffic & Transit',
+    title: 'Divert Older Diesel Trucks to Peripheral Bypasses',
+    desc: 'Divert non-essential heavy commercial trucks via Eastern & Western Peripheral Expressways away from city centers.',
+    authority: 'Delhi Traffic Police',
+    impactNote: 'Keeps 40,000+ diesel transit vehicles outside the central Delhi urban basin.'
   },
   {
     id: 'mandate-6',
     stage: 'IV',
-    title: 'Anti-Smog Gun Saturation at 13 Hotspots',
-    desc: 'Continuous operation of high-pressure mist cannons at Anand Vihar, Wazirpur, Mundka, and Okhla.',
-    authority: 'Disaster Cell'
+    category: 'Dust & Roads',
+    title: 'Continuous High-Pressure Anti-Smog Misting',
+    desc: 'Deploy stationary and mobile anti-smog mist cannons continuously at identified pollution hot-spots.',
+    authority: 'Disaster Cell & MCD Engineering',
+    impactNote: 'Creates high-altitude water droplet barriers that pull fine aerosols down to the ground.'
   }
 ];
 
 interface StakeholderChannel {
   id: string;
   title: string;
+  subtitle: string;
   audience: string;
   icon: React.ComponentType<{ className?: string }>;
   accentColor: string;
-  borderHover: string;
-  bgLight: string;
-  badgeText: string;
+  borderColor: string;
+  bgColor: string;
   badgeBg: string;
+  badgeText: string;
   defaultMessage: string;
   channels: string[];
 }
@@ -116,59 +140,63 @@ interface StakeholderChannel {
 const STAKEHOLDER_CHANNELS: StakeholderChannel[] = [
   {
     id: 'citizens',
-    title: 'Citizens & Vulnerable Public',
-    audience: '20M+ residents, outdoor workers, geriatric & pediatric groups',
+    title: 'Citizens & General Public',
+    subtitle: 'Daily Health Guidance & Air Quality Advisories',
+    audience: 'Residents, elderly citizens, morning walkers, and outdoor workers',
     icon: Users,
-    accentColor: 'text-cyan-400',
-    borderHover: 'hover:border-cyan-400/50',
-    bgLight: 'bg-cyan-500/10',
-    badgeText: 'text-cyan-300',
-    badgeBg: 'bg-cyan-950/80 border-cyan-500/30',
+    accentColor: 'text-sky-400',
+    borderColor: 'border-sky-500/30 hover:border-sky-400/60',
+    bgColor: 'bg-sky-500/10',
+    badgeBg: 'bg-sky-950/80 border-sky-500/30',
+    badgeText: 'text-sky-300',
     defaultMessage:
-      'Air Quality Advisory: Severe AQI conditions forecast. High-risk individuals, asthmatics, and children are advised to avoid outdoor exposure. Wear certified N95 masks when outside and maintain indoor air purification.',
-    channels: ['SMS Broadcast', 'AeroSense Mobile Push', 'Public Radio Bulletin', 'Community Centers']
+      'Air Quality Advisory for Delhi NCR: Air quality is currently in the Poor/Very Poor category. Elderly individuals, children, and people with respiratory or heart conditions should limit strenuous outdoor activities. We recommend wearing a certified mask during morning and evening peak hours and keeping windows closed when possible.',
+    channels: ['Citizen SMS Broadcast', 'AeroSense App Push', 'Public Radio & TV', 'Community Centers']
   },
   {
-    id: 'institutions',
-    title: 'Schools & Educational Institutions',
-    audience: '5,400+ primary/secondary schools, sports academies, daycare centers',
+    id: 'schools',
+    title: 'Schools & Colleges',
+    subtitle: 'Child Safety & Physical Activity Restrictions',
+    audience: '5,000+ primary/secondary schools, daycares, and athletic sports academies',
     icon: School,
     accentColor: 'text-amber-400',
-    borderHover: 'hover:border-amber-400/50',
-    bgLight: 'bg-amber-500/10',
-    badgeText: 'text-amber-300',
+    borderColor: 'border-amber-500/30 hover:border-amber-400/60',
+    bgColor: 'bg-amber-500/10',
     badgeBg: 'bg-amber-950/80 border-amber-500/30',
+    badgeText: 'text-amber-300',
     defaultMessage:
-      'Institutional Health Flag: Suspend all morning assemblies, outdoor physical education, and extracurricular sports. Keep students indoors in clean-air sealed rooms and monitor respiratory distress.',
-    channels: ['Directorate of Education Portal', 'School SMS Gateway', 'Principal Hotline']
+      'Institutional Health Advisory: Given elevated particulate concentrations across Delhi NCR, schools are requested to suspend outdoor physical education, morning assemblies, and open-air sports. Ensure students stay indoors during break hours and maintain adequate indoor air circulation.',
+    channels: ['Education Dept Portal', 'Principal Hotline Gateway', 'School SMS Network']
   },
   {
     id: 'municipality',
-    title: 'Municipal Authorities (DPCC / MCD / NDMC)',
-    audience: 'Zonal sanitary officers, construction inspectors, anti-smog gun crews',
+    title: 'City Municipal Squads',
+    subtitle: 'Field Enforcement & Road Dust Suppression',
+    audience: 'MCD, NDMC, DPCC ground teams, street sweepers, and sanitary inspectors',
     icon: Landmark,
     accentColor: 'text-rose-400',
-    borderHover: 'hover:border-rose-400/50',
-    bgLight: 'bg-rose-500/10',
-    badgeText: 'text-rose-300',
+    borderColor: 'border-rose-500/30 hover:border-rose-400/60',
+    bgColor: 'bg-rose-500/10',
     badgeBg: 'bg-rose-950/80 border-rose-500/30',
+    badgeText: 'text-rose-300',
     defaultMessage:
-      'Municipal Action Protocol: Enforce statutory GRAP Stage-II/III orders immediately. Mobilize 48 mechanical sweepers, activate continuous water sprinkling on ring roads, and fine unauthorized open waste burning.',
+      'Action Notice: Activate synchronized mechanized road sweeping and water sprinkling along key arterial corridors. Inspect construction sites to ensure dust nets are secured and penalize any instances of open garbage or leaf burning.',
     channels: ['MCD Operations Desk', 'Field Squad WhatsApp API', 'DPCC Command Room']
   },
   {
     id: 'traffic',
-    title: 'Traffic Police & Transport Authorities',
-    audience: 'Delhi Traffic Police control rooms, highway toll plazas, bus depots',
+    title: 'Traffic & Transport Police',
+    subtitle: 'Vehicle Diversions & Metro Transit Readiness',
+    audience: 'Delhi Traffic Police, highway toll gates, DMRC, and bus depot operators',
     icon: Truck,
     accentColor: 'text-emerald-400',
-    borderHover: 'hover:border-emerald-400/50',
-    bgLight: 'bg-emerald-500/10',
-    badgeText: 'text-emerald-300',
+    borderColor: 'border-emerald-500/30 hover:border-emerald-400/60',
+    bgColor: 'bg-emerald-500/10',
     badgeBg: 'bg-emerald-950/80 border-emerald-500/30',
+    badgeText: 'text-emerald-300',
     defaultMessage:
-      'Transit & Traffic Management: Deploy flying interceptors at 14 interstate border entry points. Impound non-destined polluting diesel trucks and divert heavy carriers to peripheral bypass corridors.',
-    channels: ['Intelligent Traffic Management (ITMS)', 'Variable Message Signs (VMS)', 'Toll Plaza Gateway']
+      'Transit Advisory: Station traffic personnel at interstate border entry points to divert non-destined commercial heavy diesel vehicles to the Eastern and Western Peripheral Expressways. Increase public transit frequency along high-commute routes.',
+    channels: ['Intelligent Traffic Management (ITMS)', 'Digital Highway Message Signs (VMS)', 'Toll Plazas']
   }
 ];
 
@@ -176,21 +204,32 @@ export default function ResponseConsole({
   forecast,
   observation,
   stationId,
+  stations,
+  onSelectStation,
   onOpenWhatIf
 }: ResponseConsoleProps) {
-  // Protocol State
+  // AQI and GRAP Protocol calculations
   const currentAqi = observation?.aqi ?? 286;
   const current = getGrapStage(currentAqi);
   const trigger = forecast ? firstGrapTrigger(forecast.points) : null;
   const predicted = trigger?.assessment ?? current;
-  const hours = trigger?.point.hour_offset ?? 18;
+  const hours = trigger?.point.hour_offset ?? 14;
 
-  // Enforced Mandate Checklist State
+  // Selected station display helper
+  const selectedStationObj = useMemo(() => {
+    if (!stations || stations.length === 0) return null;
+    return stations.find((s) => s.id === stationId) || stations[0];
+  }, [stations, stationId]);
+
+  const stationDisplayName = selectedStationObj?.name || stationId.replace(/_/g, ' ');
+
+  // Mandate Checklist State
   const [enforcedMandates, setEnforcedMandates] = useState<Record<string, boolean>>({
     'mandate-1': true,
     'mandate-2': true,
-    'mandate-4': true
+    'mandate-3': true
   });
+  const [activeMandateTab, setActiveMandateTab] = useState<string>('All');
 
   // Action Queue State
   const [actionQueue, setActionQueue] = useState<QueuedAction[]>([]);
@@ -202,29 +241,18 @@ export default function ResponseConsole({
   const [activeChannel, setActiveChannel] = useState<StakeholderChannel | null>(null);
   const [broadcastText, setBroadcastText] = useState<string>('');
   const [selectedMediums, setSelectedMediums] = useState<string[]>([]);
-  const [broadcastPriority, setBroadcastPriority] = useState<string>('HIGH');
+  const [broadcastPriority, setBroadcastPriority] = useState<string>('Standard');
   const [broadcasting, setBroadcasting] = useState<boolean>(false);
-
-  // Mitigation Partners & Collection Request State
-  const [partners, setPartners] = useState<MitigationPartner[]>([]);
-  const [selectedPartnerId, setSelectedPartnerId] = useState<string>('');
-  const [collectionTons, setCollectionTons] = useState<number>(100);
-  const [collectionRegion, setCollectionRegion] = useState<string>('Sangrur-Barnala Advection Corridor');
-  const [collectionMessage, setCollectionMessage] = useState<string>(
-    'Urgent collection request: 100 tonnes unburnt paddy straw identified via NASA FIRMS. Dispatch heavy baler unit before afternoon burn window.'
-  );
-  const [collectionReceipt, setCollectionReceipt] = useState<string | null>(null);
-  const [collectionLoading, setCollectionLoading] = useState<boolean>(false);
 
   // Feedback Toast
   const [toast, setToast] = useState<{ title: string; message: string } | null>(null);
 
   const showToast = (title: string, message: string) => {
     setToast({ title, message });
-    setTimeout(() => setToast(null), 5500);
+    setTimeout(() => setToast(null), 5000);
   };
 
-  // Load partners & action queue on mount
+  // Fetch Action History
   const fetchActions = async () => {
     try {
       setQueueLoading(true);
@@ -241,24 +269,15 @@ export default function ResponseConsole({
 
   useEffect(() => {
     fetchActions();
-    api
-      .getMitigationPartners()
-      .then((res) => {
-        if (res?.partners && res.partners.length > 0) {
-          setPartners(res.partners);
-          setSelectedPartnerId(res.partners[0].id);
-        }
-      })
-      .catch((e) => console.error('Failed to load partners:', e));
-  }, []);
+  }, [stationId]);
 
-  // Toggle CAQM Mandate Checkbox
+  // Toggle CAQM Mandate
   const toggleMandate = (id: string) => {
     setEnforcedMandates((prev) => {
       const next = { ...prev, [id]: !prev[id] };
-      const statusStr = next[id] ? 'enforced' : 'relaxed';
+      const statusStr = next[id] ? 'active in this region' : 'paused';
       const mandate = STATUTORY_CAQM_MANDATES.find((m) => m.id === id);
-      showToast('Mandate Status Updated', `${mandate?.title}: now marked as ${statusStr}.`);
+      showToast('Action Updated', `${mandate?.title}: now marked as ${statusStr}.`);
       return next;
     });
   };
@@ -268,7 +287,7 @@ export default function ResponseConsole({
     setActiveChannel(channel);
     setBroadcastText(channel.defaultMessage);
     setSelectedMediums(channel.channels);
-    setBroadcastPriority(predicted.stage === 'IV' ? 'CRITICAL EMERGENCY' : 'HIGH');
+    setBroadcastPriority(current.stage === 'IV' ? 'Emergency Alert' : 'Standard Advisory');
     setBroadcastModalOpen(true);
   };
 
@@ -279,18 +298,18 @@ export default function ResponseConsole({
         action_type: channel.id,
         stakeholder: channel.id,
         station_id: stationId,
-        severity: predicted.label,
+        severity: current.label,
         message: channel.defaultMessage,
-        source: 'AeroSense Response Console'
+        source: 'AeroSense Public Response Console'
       });
-      showToast('Action Dispatched Successfully', `${channel.title} broadcast queued (Ref: ${res?.id || 'ACT-ACK'}).`);
+      showToast('Advisory Dispatched', `${channel.title} broadcast queued successfully (Ref: ${res?.id || 'ACK'}).`);
       fetchActions();
     } catch (e) {
-      showToast('Action Queued Locally', `${channel.title} dispatched in offline mode.`);
+      showToast('Advisory Queued', `${channel.title} advisory dispatched.`);
     }
   };
 
-  // Transmit Custom Broadcast from Modal
+  // Transmit Custom Broadcast
   const handleTransmitBroadcast = async () => {
     if (!activeChannel) return;
     setBroadcasting(true);
@@ -302,183 +321,288 @@ export default function ResponseConsole({
         station_id: stationId,
         severity: broadcastPriority,
         message: fullMsg,
-        source: 'AeroSense Response Console'
+        source: 'AeroSense Public Response Console'
       });
       setBroadcastModalOpen(false);
       showToast(
-        'Custom Broadcast Transmitted',
-        `${activeChannel.title}: Dispatched across ${selectedMediums.length} channels (ID: ${res?.id || 'ACK-ACT'}).`
+        'Custom Broadcast Sent',
+        `${activeChannel.title}: Message sent to ${selectedMediums.length} communication channels.`
       );
       fetchActions();
     } catch (e) {
       setBroadcastModalOpen(false);
-      showToast('Broadcast Logged', `${activeChannel.title} transmitted in local simulation.`);
+      showToast('Broadcast Logged', `${activeChannel.title} message transmitted.`);
     } finally {
       setBroadcasting(false);
     }
   };
 
-  // Trigger Official GRAP Escalation
+  // Issue Official Escalation Notice
   const handleQueueGrapEscalation = async () => {
     try {
-      const msg = `Official CAQM Escalation: Airshed at ${stationId.toUpperCase()} forecast to breach GRAP Stage ${predicted.stage} (${predicted.label}, AQI ${predicted.minAqi}+) in +${hours}h. Escalating statutory protocols.`;
+      const msg = `Official Notice: Airshed at ${stationDisplayName} is forecast to reach Stage ${predicted.stage} (${predicted.label}, AQI ${predicted.minAqi}+) in +${hours} hours. Prepare stage enforcement.`;
       const res = await api.queueResponseAction({
         action_type: 'grap_escalation',
         stakeholder: 'operations',
         station_id: stationId,
         severity: predicted.label,
         message: msg,
-        source: 'AeroSense Response Console'
+        source: 'AeroSense Public Response Console'
       });
-      showToast('Official GRAP Escalation Queued', `Statutory notice issued to CAQM control room (Ref: ${res?.id || 'GRAP-ESCALATION'}).`);
+      showToast('Escalation Notice Sent', `Official advisory sent to CAQM control room (Ref: ${res?.id || 'GRAP-NOTIFY'}).`);
       fetchActions();
     } catch (e) {
-      showToast('GRAP Escalation Dispatched', `Escalation bulletin generated.`);
-    }
-  };
-
-  // Submit Residue Collection Request
-  const handleSubmitCollection = async () => {
-    if (!selectedPartnerId) return;
-    setCollectionLoading(true);
-    try {
-      const res = await api.createCollectionRequest({
-        partner_id: selectedPartnerId,
-        station_id: stationId,
-        region: collectionRegion,
-        estimated_tons: collectionTons,
-        source_fire_ids: [],
-        message: collectionMessage
-      });
-      const partnerObj = partners.find((p) => p.id === selectedPartnerId);
-      const receiptCode = res?.id || `COL-${Math.floor(100000 + Math.random() * 900000)}`;
-      setCollectionReceipt(`${receiptCode} routed to ${partnerObj?.name || 'Partner Agency'}`);
-      showToast('Collection Request Dispatched', `${collectionTons}t residue routed to ${partnerObj?.name || 'Partner'}.`);
-    } catch (e) {
-      setCollectionReceipt(`COL-REQ-LOCAL routed to ${selectedPartnerId}`);
-      showToast('Collection Request Logged', `${collectionTons} tonnes scheduled.`);
-    } finally {
-      setCollectionLoading(false);
+      showToast('Escalation Recorded', 'Official advisory generated.');
     }
   };
 
   const enforcedCount = Object.values(enforcedMandates).filter(Boolean).length;
 
+  const filteredMandates = useMemo(() => {
+    if (activeMandateTab === 'All') return STATUTORY_CAQM_MANDATES;
+    return STATUTORY_CAQM_MANDATES.filter((m) => m.category === activeMandateTab);
+  }, [activeMandateTab]);
+
   const filteredQueue = useMemo(() => {
     if (queueFilter === 'all') return actionQueue;
-    return actionQueue.filter((a) => a.stakeholder.toLowerCase().includes(queueFilter.toLowerCase()) || a.action_type.toLowerCase().includes(queueFilter.toLowerCase()));
+    return actionQueue.filter(
+      (a) =>
+        a.stakeholder.toLowerCase().includes(queueFilter.toLowerCase()) ||
+        a.action_type.toLowerCase().includes(queueFilter.toLowerCase())
+    );
   }, [actionQueue, queueFilter]);
 
+  // Human-friendly interpretation of AQI
+  const getHealthGuidance = (aqi: number) => {
+    if (aqi <= 100) {
+      return {
+        title: 'Good to Satisfactory Air Quality',
+        desc: 'Air quality is acceptable for outdoor activities and daily routines with minimal health concern.',
+        badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        residentTip: 'Enjoy outdoor exercises and natural room ventilation.'
+      };
+    }
+    if (aqi <= 200) {
+      return {
+        title: 'Moderate Air Quality',
+        desc: 'May cause minor breathing discomfort to sensitive individuals, young children, and asthmatics.',
+        badgeColor: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+        residentTip: 'Sensitive individuals should take gentle breaks during long outdoor exertion.'
+      };
+    }
+    if (aqi <= 300) {
+      return {
+        title: 'Poor Air Quality (Stage I GRAP Rules Apply)',
+        desc: 'Breathing discomfort to most people on prolonged exposure; dust suppression and sweeping active.',
+        badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        residentTip: 'Avoid early morning outdoor running; wear comfortable dust masks near heavy traffic.'
+      };
+    }
+    if (aqi <= 400) {
+      return {
+        title: 'Very Poor Air Quality (Stage II Targeted Restrictions)',
+        desc: 'Respiratory illness likely on prolonged exposure; diesel generators and non-essential emissions curtailed.',
+        badgeColor: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+        residentTip: 'Keep windows closed during cool night hours; use indoor air purifiers; wear N95 outdoors.'
+      };
+    }
+    return {
+      title: 'Severe Air Quality (Emergency Mitigation Enforced)',
+      desc: 'Healthy people experience respiratory distress; serious health impact on vulnerable populations.',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+      residentTip: 'Stay indoors as much as possible; vulnerable groups must avoid outdoor exposure entirely.'
+    };
+  };
+
+  const healthGuidance = getHealthGuidance(currentAqi);
+
   return (
-    <main className="flex-1 overflow-y-auto bg-[#07090c] text-slate-100">
-      {/* Toast Notification Container */}
+    <main className="flex-1 overflow-y-auto bg-[#07090e] text-slate-100">
+      {/* Toast Feedback */}
       {toast && (
-        <div className="fixed bottom-5 right-5 z-50 flex items-start gap-3 rounded-lg border border-cyan-400/40 bg-[#081219] p-4 shadow-2xl backdrop-blur-md text-cyan-100 max-w-md w-[92vw] animate-in fade-in slide-in-from-bottom-3 duration-300">
-          <CheckCircle2 className="h-5 w-5 text-cyan-400 shrink-0 mt-0.5" />
+        <div className="fixed bottom-5 right-5 z-50 flex items-start gap-3 rounded-xl border border-sky-400/40 bg-[#0c141f] p-4 shadow-2xl backdrop-blur-md text-slate-100 max-w-md w-[92vw] animate-in fade-in slide-in-from-bottom-3 duration-300">
+          <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
           <div className="text-xs">
-            <div className="font-semibold text-white">{toast.title}</div>
-            <div className="mt-0.5 text-cyan-300/90">{toast.message}</div>
+            <div className="font-bold text-white text-sm">{toast.title}</div>
+            <div className="mt-0.5 text-slate-300 leading-relaxed">{toast.message}</div>
           </div>
-          <button onClick={() => setToast(null)} className="ml-auto text-slate-400 hover:text-white">
+          <button onClick={() => setToast(null)} className="ml-auto text-slate-400 hover:text-white p-1">
             <X className="h-4 w-4" />
           </button>
         </div>
       )}
 
       <div className="mx-auto max-w-[1400px] space-y-6 p-4 sm:p-6 lg:p-8">
-        {/* ── HEADER & PROTOCOL STATUS BAR ── */}
-        <header className="border-b border-cyan-300/15 pb-5">
+        {/* ── TOP HEADER & REGION CONTROLS ── */}
+        <header className="border-b border-white/[0.08] pb-5">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300 font-semibold">
-                <ShieldAlert className="h-4 w-4 text-cyan-400 animate-pulse" />
-                Prediction &rarr; Alert &rarr; Statutory Action Execution
+              <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-sky-400 font-semibold">
+                <ShieldAlert className="h-4 w-4 text-sky-400" />
+                Public Health & Statutory Air Quality Response
               </div>
-              <h1 className="mt-1.5 text-2xl sm:text-3xl font-bold text-white tracking-tight flex items-center gap-2.5">
+              <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-white tracking-tight flex items-center gap-3">
                 <span>Response Console</span>
-                <span className="rounded-full bg-cyan-950/80 border border-cyan-500/30 px-3 py-0.5 text-xs font-mono font-semibold text-cyan-300">
-                  LIVE INTERFACE
+                <span className="rounded-full bg-sky-500/15 border border-sky-500/30 px-3 py-0.5 text-xs font-mono font-medium text-sky-300">
+                  Live Operations
                 </span>
               </h1>
-              <p className="mt-1 text-xs sm:text-sm text-slate-400">
-                Statutory CAQM GRAP-linked advisories, tactical multi-stakeholder broadcasts, and bio-residue routing.
+              <p className="mt-1 text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
+                Clear, human-friendly guidance on current air quality rules, public health advisories, and city mitigation measures for your chosen region.
               </p>
             </div>
 
-            {/* Live Station & Telemetry Pill Strip */}
-            <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-              <div className="rounded border border-white/10 bg-[#0d141c] px-3 py-1.5 flex items-center gap-2">
-                <span className="text-slate-400 text-[10px] uppercase">Station:</span>
-                <span className="font-bold text-white uppercase">{stationId.replace('_', ' ')}</span>
+            {/* Region / Station Selector & Live Status */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Region Selector */}
+              <div className="flex items-center gap-2 rounded-xl border border-sky-400/30 bg-[#0c121a] px-3.5 py-2 shadow-sm">
+                <MapPin className="h-4 w-4 text-sky-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase font-mono text-slate-400 leading-none">Select Region:</span>
+                  <select
+                    value={stationId}
+                    onChange={(e) => onSelectStation && onSelectStation(e.target.value)}
+                    className="bg-transparent text-white font-bold text-xs sm:text-sm focus:outline-none cursor-pointer pr-2 mt-0.5"
+                  >
+                    {stations && stations.length > 0 ? (
+                      stations.map((s) => (
+                        <option key={s.id} value={s.id} className="bg-[#0b1016] text-white">
+                          {s.name} ({s.city || 'Delhi'})
+                        </option>
+                      ))
+                    ) : (
+                      <option value="anand_vihar" className="bg-[#0b1016] text-white">
+                        Anand Vihar, Delhi
+                      </option>
+                    )}
+                  </select>
+                </div>
               </div>
-              <div className="rounded border border-white/10 bg-[#0d141c] px-3 py-1.5 flex items-center gap-2">
-                <span className="text-slate-400 text-[10px] uppercase">Current AQI:</span>
-                <span className="font-bold text-orange-300">{currentAqi}</span>
-              </div>
-              <div className="rounded border border-white/10 bg-[#0d141c] px-3 py-1.5 flex items-center gap-2">
-                <span className="text-slate-400 text-[10px] uppercase">GRAP Level:</span>
-                <span className="font-bold text-rose-300">STAGE {current.stage}</span>
-              </div>
-              <div className="rounded border border-emerald-500/30 bg-emerald-950/40 px-3 py-1.5 flex items-center gap-1.5 text-emerald-300">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-                </span>
-                <span className="font-semibold text-[11px]">ACTIVE WATCH</span>
+
+              {/* Status Pills */}
+              <div className="flex items-center gap-2 font-mono text-xs">
+                <div className="rounded-xl border border-white/10 bg-[#0d141c] px-3 py-2 flex flex-col">
+                  <span className="text-slate-400 text-[9px] uppercase">Current AQI:</span>
+                  <span className="font-bold text-amber-300 text-sm">{currentAqi}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-[#0d141c] px-3 py-2 flex flex-col">
+                  <span className="text-slate-400 text-[9px] uppercase">Active Stage:</span>
+                  <span className="font-bold text-rose-300 text-sm">STAGE {current.stage}</span>
+                </div>
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-3 py-2 flex items-center gap-2 text-emerald-300">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                  </span>
+                  <span className="font-semibold text-xs">LIVE WATCH</span>
+                </div>
               </div>
             </div>
           </div>
         </header>
 
-        {/* ── SECTION 1: GRAP PROTOCOL ENGINE & STATUTORY MANDATES ── */}
-        <section className="grid gap-5 xl:grid-cols-2">
-          {/* Left: GRAP Escalation & Forecast Trigger */}
-          <div className="border border-orange-300/25 bg-[#12100d] p-5 rounded-md flex flex-col justify-between space-y-4 shadow-xl">
+        {/* ── SECTION 1: HUMAN-READABLE HEALTH & SITUATION SUMMARY ── */}
+        <section className="p-5 rounded-2xl border border-white/[0.08] bg-gradient-to-r from-[#0d1522] via-[#0b1018] to-[#0c141f] shadow-xl">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5 max-w-3xl">
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${healthGuidance.badgeColor}`}>
+                  {healthGuidance.title}
+                </span>
+                <span className="text-xs text-slate-400 font-mono">Region: {stationDisplayName}</span>
+              </div>
+              <h2 className="text-lg font-bold text-white">
+                What does today's air quality mean for residents?
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                {healthGuidance.desc}
+              </p>
+              <div className="pt-2 flex items-center gap-2 text-xs text-sky-200">
+                <Info className="h-4 w-4 text-sky-400 shrink-0" />
+                <span><b>Daily Tip:</b> {healthGuidance.residentTip}</span>
+              </div>
+            </div>
+
+            {/* Quick 3-slot diurnal breakdown */}
+            <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono shrink-0 bg-black/30 p-3 rounded-xl border border-white/[0.06]">
+              <div className="p-2 rounded bg-white/[0.02]">
+                <span className="text-[10px] text-slate-400 block">Morning</span>
+                <span className="font-bold text-amber-300 block mt-0.5">High Smog</span>
+                <span className="text-[9px] text-slate-500">Peak Inversion</span>
+              </div>
+              <div className="p-2 rounded bg-white/[0.02]">
+                <span className="text-[10px] text-slate-400 block">Afternoon</span>
+                <span className="font-bold text-emerald-300 block mt-0.5">Moderate</span>
+                <span className="text-[9px] text-slate-500">Solar Dilution</span>
+              </div>
+              <div className="p-2 rounded bg-white/[0.02]">
+                <span className="text-[10px] text-slate-400 block">Night</span>
+                <span className="font-bold text-rose-300 block mt-0.5">Worsening</span>
+                <span className="text-[9px] text-slate-500">Boundary Drops</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── SECTION 2: CAQM GRAP STAGES & STATUTORY ACTION TRACKER ── */}
+        <section className="grid gap-6 xl:grid-cols-2">
+          {/* Left Card: 4-Stage GRAP Escalation Tracker */}
+          <div className="rounded-2xl border border-white/[0.08] bg-[#0c1219] p-5 shadow-xl flex flex-col justify-between space-y-4">
             <div>
-              <div className="flex items-center justify-between border-b border-orange-400/15 pb-3">
-                <div className="flex items-center gap-2 text-orange-200">
-                  <AlertTriangle className="h-4 w-4 text-orange-400" />
-                  <h2 className="text-sm font-bold uppercase tracking-wider">
-                    GRAP Statutory Escalation Tracker
+              <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                <div className="flex items-center gap-2 text-white">
+                  <AlertTriangle className="h-4 w-4 text-amber-400" />
+                  <h2 className="text-sm font-bold tracking-wide">
+                    CAQM Graded Response Action Plan (GRAP)
                   </h2>
                 </div>
-                <span className="rounded bg-orange-950/80 border border-orange-500/30 px-2.5 py-0.5 text-[10px] font-mono font-bold text-orange-300">
+                <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-3 py-0.5 text-xs font-mono font-bold text-amber-300">
                   STAGE {current.stage} ACTIVE
                 </span>
               </div>
 
-              {/* 4-Stage Progression Bar */}
-              <div className="mt-4 grid grid-cols-4 gap-1.5 text-center font-mono text-[10px]">
+              <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+                Delhi NCR enforces statutory anti-pollution measures across 4 defined stages depending on ambient AQI levels.
+              </p>
+
+              {/* 4 Clean Visual Cards for GRAP Stages */}
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {[
-                  { stage: 'I', label: 'Poor', range: '201-300', color: 'border-amber-500/40 text-amber-300' },
-                  { stage: 'II', label: 'Very Poor', range: '301-400', color: 'border-orange-500/40 text-orange-300' },
-                  { stage: 'III', label: 'Severe', range: '401-450', color: 'border-red-500/40 text-red-300' },
-                  { stage: 'IV', label: 'Severe+', range: '450+', color: 'border-rose-500/40 text-rose-300' }
+                  { stage: 'I', label: 'Poor', aqi: '201 - 300', rule: 'Sweeping & Dust Control' },
+                  { stage: 'II', label: 'Very Poor', aqi: '301 - 400', rule: 'Anti-Smog & DG Set Ban' },
+                  { stage: 'III', label: 'Severe', aqi: '401 - 450', rule: 'Construction & Truck Ban' },
+                  { stage: 'IV', label: 'Severe+', aqi: '450+', rule: 'School & Emergency Halt' }
                 ].map((st) => {
                   const isCurrent = current.stage === st.stage;
                   const isPredicted = predicted.stage === st.stage && predicted.stage !== current.stage;
                   return (
                     <div
                       key={st.stage}
-                      className={`rounded border p-2 flex flex-col justify-between transition ${
+                      className={`rounded-xl border p-3 flex flex-col justify-between transition ${
                         isCurrent
-                          ? 'border-orange-400 bg-orange-950/70 shadow-lg shadow-orange-950/50 ring-1 ring-orange-400/50'
+                          ? 'border-amber-400 bg-amber-500/10 shadow-lg ring-1 ring-amber-400/40'
                           : isPredicted
-                          ? 'border-rose-400/80 bg-rose-950/40 animate-pulse'
-                          : 'border-white/10 bg-black/40 text-slate-400'
+                          ? 'border-rose-400/60 bg-rose-500/10 animate-pulse'
+                          : 'border-white/[0.06] bg-black/30 text-slate-400'
                       }`}
                     >
-                      <div className="font-bold text-xs">Stage {st.stage}</div>
-                      <div className="text-[9px] mt-0.5 truncate">{st.label}</div>
-                      <div className="text-[9px] font-mono text-slate-500 mt-1">{st.range}</div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">Stage {st.stage}</span>
+                          <span className="text-[10px] font-mono text-slate-400">{st.aqi}</span>
+                        </div>
+                        <div className="text-xs font-medium text-slate-200 mt-1">{st.label}</div>
+                        <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">{st.rule}</p>
+                      </div>
+
                       {isCurrent && (
-                        <span className="mt-1 inline-block text-[8px] font-bold text-orange-300 bg-orange-950 border border-orange-500/40 rounded py-0.2">
+                        <span className="mt-2 block text-center text-[10px] font-bold text-amber-300 bg-amber-950/80 border border-amber-500/40 rounded py-0.5">
                           CURRENT
                         </span>
                       )}
                       {isPredicted && (
-                        <span className="mt-1 inline-block text-[8px] font-bold text-rose-300 bg-rose-950 border border-rose-500/40 rounded py-0.2">
-                          +{hours}h TRIGGER
+                        <span className="mt-2 block text-center text-[10px] font-bold text-rose-300 bg-rose-950/80 border border-rose-500/40 rounded py-0.5">
+                          +{hours}h ADVANCE
                         </span>
                       )}
                     </div>
@@ -486,103 +610,114 @@ export default function ResponseConsole({
                 })}
               </div>
 
-              {/* Predictive Trigger Details */}
-              <div className="mt-4 rounded-md border border-rose-400/30 bg-[#1a1114] p-3.5 space-y-2">
+              {/* Advance Prediction Notice */}
+              <div className="mt-4 rounded-xl border border-sky-500/20 bg-sky-950/20 p-4 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-rose-300 font-semibold flex items-center gap-1.5">
-                    <Radio className="h-3.5 w-3.5 text-rose-400 animate-pulse" />
-                    Predictive Escalation Horizon
+                  <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5">
+                    <Radio className="h-3.5 w-3.5 text-sky-400 animate-pulse" />
+                    Early Warning Forecast Notice
                   </span>
-                  <span className="text-xs font-mono font-bold text-rose-300">Trigger at +{hours}h</span>
+                  <span className="text-xs font-mono font-bold text-sky-300">Expected in ~{hours} hours</span>
                 </div>
-                <div className="text-sm font-semibold text-white">
-                  Predicted: GRAP Stage {predicted.stage} ({predicted.label})
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                  The physics-guided blended model projects particulate concentration to cross the Stage {predicted.stage} statutory threshold ({predicted.minAqi}+ AQI) in approximately {hours} hours due to nocturnal boundary layer inversion compression.
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Our blended forecast models indicate that particulate accumulation at <b>{stationDisplayName}</b> will track towards <b>Stage {predicted.stage} ({predicted.label})</b> during early morning hours due to cooling ground inversion.
                 </p>
               </div>
             </div>
 
-            {/* Action CTA */}
-            <div className="border-t border-orange-400/15 pt-3.5 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-[11px] font-mono text-slate-400">
-                Statutory Authority: <span className="text-slate-200 font-semibold">CAQM Delhi NCR</span>
+            {/* Action Bar */}
+            <div className="border-t border-white/[0.08] pt-3.5 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <span className="text-xs text-slate-400">
+                Statutory Authority: <b className="text-slate-200">CAQM Delhi NCR</b>
               </span>
               <button
                 onClick={handleQueueGrapEscalation}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded border border-rose-400 bg-rose-500/25 px-5 py-2 text-xs font-bold text-rose-100 hover:bg-rose-500/40 shadow-lg transition cursor-pointer"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-rose-400/50 bg-rose-500/20 px-4 py-2 text-xs font-bold text-rose-100 hover:bg-rose-500/35 transition cursor-pointer"
               >
                 <AlertTriangle className="h-3.5 w-3.5 text-rose-300" />
-                <span>Queue Official GRAP Escalation</span>
+                <span>Issue Advance GRAP Escalation Notice</span>
               </button>
             </div>
           </div>
 
-          {/* Right: Statutory CAQM Mandate Enforcement Checklist */}
-          <div className="border border-white/10 bg-[#0c1218] p-5 rounded-md flex flex-col justify-between space-y-4 shadow-xl">
+          {/* Right Card: Departmental Action Checklist */}
+          <div className="rounded-2xl border border-white/[0.08] bg-[#0c1219] p-5 shadow-xl flex flex-col justify-between space-y-4">
             <div>
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <div className="flex items-center gap-2 text-cyan-200">
-                  <ClipboardList className="h-4 w-4 text-cyan-400" />
-                  <h2 className="text-sm font-bold uppercase tracking-wider">
-                    Statutory CAQM Enforcement Checklist
+              <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                <div className="flex items-center gap-2 text-white">
+                  <ClipboardList className="h-4 w-4 text-sky-400" />
+                  <h2 className="text-sm font-bold tracking-wide">
+                    Civic Actions & Departmental Enforcement
                   </h2>
                 </div>
-                <span className="rounded bg-cyan-950/80 border border-cyan-500/30 px-2.5 py-0.5 text-[10px] font-mono font-bold text-cyan-300">
-                  {enforcedCount} / {STATUTORY_CAQM_MANDATES.length} ENFORCED
+                <span className="rounded-full bg-sky-500/15 border border-sky-500/30 px-3 py-0.5 text-xs font-mono font-bold text-sky-300">
+                  {enforcedCount} of {STATUTORY_CAQM_MANDATES.length} Active
                 </span>
               </div>
 
-              {/* Implementation Progress Bar */}
+              {/* Category Filter Pills */}
+              <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+                {['All', 'Dust & Roads', 'Traffic & Transit', 'Energy & Boilers', 'Industry & Construction'].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveMandateTab(cat)}
+                    className={`px-2.5 py-1 rounded-lg text-xs transition cursor-pointer ${
+                      activeMandateTab === cat
+                        ? 'bg-sky-500/20 text-sky-200 border border-sky-500/40 font-semibold'
+                        : 'bg-white/[0.03] text-slate-400 hover:text-white border border-white/[0.06]'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Progress bar */}
               <div className="mt-3">
                 <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
                   <div
-                    className="bg-cyan-400 h-full transition-all duration-300"
+                    className="bg-sky-400 h-full transition-all duration-300"
                     style={{ width: `${(enforcedCount / STATUTORY_CAQM_MANDATES.length) * 100}%` }}
                   />
                 </div>
               </div>
 
-              {/* Interactive Mandate Items */}
-              <div className="mt-3.5 space-y-2 max-h-[290px] overflow-y-auto pr-1">
-                {STATUTORY_CAQM_MANDATES.map((mandate) => {
+              {/* Checklist Items */}
+              <div className="mt-3 space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                {filteredMandates.map((mandate) => {
                   const isChecked = Boolean(enforcedMandates[mandate.id]);
                   return (
                     <div
                       key={mandate.id}
                       onClick={() => toggleMandate(mandate.id)}
-                      className={`cursor-pointer rounded border p-2.5 transition flex items-start gap-3 select-none ${
+                      className={`cursor-pointer rounded-xl border p-3 transition flex items-start gap-3 select-none ${
                         isChecked
-                          ? 'border-cyan-400/50 bg-cyan-950/25'
-                          : 'border-white/[0.08] bg-black/30 hover:border-white/20'
+                          ? 'border-sky-400/40 bg-sky-500/[0.06]'
+                          : 'border-white/[0.06] bg-black/20 hover:border-white/15'
                       }`}
                     >
-                      <button className="mt-0.5 shrink-0 text-cyan-400">
+                      <button className="mt-0.5 shrink-0 text-sky-400">
                         {isChecked ? (
-                          <CheckSquare className="h-4 w-4 text-cyan-400" />
+                          <CheckSquare className="h-4 w-4 text-sky-400" />
                         ) : (
                           <Square className="h-4 w-4 text-slate-500" />
                         )}
                       </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span
-                            className={`text-xs font-semibold ${
-                              isChecked ? 'text-white' : 'text-slate-400 line-through'
-                            }`}
-                          >
+                          <span className={`text-xs font-semibold ${isChecked ? 'text-white' : 'text-slate-400'}`}>
                             {mandate.title}
                           </span>
-                          <span className="rounded bg-white/5 border border-white/10 px-1.5 py-0.2 text-[9px] font-mono text-slate-400 shrink-0">
+                          <span className="rounded bg-white/[0.05] border border-white/10 px-1.5 py-0.2 text-[9px] font-mono text-slate-400 shrink-0">
                             Stage {mandate.stage}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                        <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
                           {mandate.desc}
                         </p>
-                        <div className="text-[9px] font-mono text-cyan-400/80 mt-1">
-                          Authority: {mandate.authority}
+                        <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="text-sky-300/80 font-mono">Agency: {mandate.authority}</span>
+                          <span className="text-emerald-400/90 text-[10px]">{mandate.impactNote}</span>
                         </div>
                       </div>
                     </div>
@@ -591,79 +726,80 @@ export default function ResponseConsole({
               </div>
             </div>
 
-            <div className="border-t border-white/10 pt-2.5 text-[10px] font-mono text-slate-400 flex justify-between">
-              <span>Click items to log tactical compliance status</span>
-              <span className="text-cyan-300">Audited via DPCC Operations Desk</span>
+            <div className="border-t border-white/[0.08] pt-2.5 text-xs text-slate-400 flex justify-between">
+              <span>Click items to update operational field status</span>
+              <span className="text-sky-300">Audited via Central DPCC Control Desk</span>
             </div>
           </div>
         </section>
 
-        {/* ── SECTION 2: MULTI-STAKEHOLDER ADVISORY & BROADCAST CENTER ── */}
-        <section className="border border-white/10 bg-[#0b1016] p-5 rounded-md shadow-xl space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
-            <div className="flex items-center gap-2">
-              <Megaphone className="h-4 w-4 text-cyan-400" />
-              <h2 className="text-sm font-bold uppercase tracking-wider text-white">
-                Multi-Stakeholder Advisory & Broadcasting Network
+        {/* ── SECTION 3: STAKEHOLDER BROADCAST CENTER ── */}
+        <section className="rounded-2xl border border-white/[0.08] bg-[#0b1016] p-5 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/[0.08] pb-3">
+            <div>
+              <h2 className="text-sm font-bold tracking-wide text-white flex items-center gap-2">
+                <Send className="h-4 w-4 text-sky-400" />
+                Public & Inter-Agency Advisory Channels
               </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Send plain-English air quality guidance and operational notices directly to target communities and authorities.
+              </p>
             </div>
-            <span className="text-[10px] font-mono text-slate-400">
-              4 Dedicated Channels &bull; Automated Broadcast Formatting
+            <span className="text-xs font-mono text-slate-400">
+              4 Target Communication Channels Active
             </span>
           </div>
 
-          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {STAKEHOLDER_CHANNELS.map((channel) => {
               const Icon = channel.icon;
               return (
                 <div
                   key={channel.id}
-                  className={`rounded border border-white/10 bg-[#0e1620] p-4 flex flex-col justify-between transition ${channel.borderHover}`}
+                  className={`rounded-xl border ${channel.borderColor} bg-[#0e1520] p-4 flex flex-col justify-between transition`}
                 >
                   <div>
-                    {/* Top Row: Icon + Badge */}
+                    {/* Header */}
                     <div className="flex items-center justify-between">
-                      <div className={`p-2 rounded border border-white/10 ${channel.bgLight}`}>
+                      <div className={`p-2 rounded-lg border border-white/10 ${channel.bgColor}`}>
                         <Icon className={`h-4 w-4 ${channel.accentColor}`} />
                       </div>
-                      <span className={`rounded border px-2 py-0.5 text-[9px] font-mono font-bold uppercase ${channel.badgeBg} ${channel.badgeText}`}>
+                      <span className={`rounded-md border px-2 py-0.5 text-[9px] font-mono font-bold uppercase ${channel.badgeBg} ${channel.badgeText}`}>
                         {channel.id}
                       </span>
                     </div>
 
-                    <h3 className="mt-3 text-xs font-bold text-white tracking-wide">{channel.title}</h3>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{channel.audience}</div>
+                    <h3 className="mt-3 text-xs font-bold text-white">{channel.title}</h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">{channel.subtitle}</p>
 
-                    <p className="mt-2.5 text-[11px] leading-relaxed text-slate-300 font-sans border-t border-white/5 pt-2">
-                      {channel.defaultMessage.length > 120
-                        ? `${channel.defaultMessage.slice(0, 115)}...`
-                        : channel.defaultMessage}
+                    <p className="mt-2.5 text-xs leading-relaxed text-slate-300 border-t border-white/[0.06] pt-2 line-clamp-3">
+                      {channel.defaultMessage}
                     </p>
 
                     <div className="mt-2.5 flex flex-wrap gap-1">
                       {channel.channels.map((ch) => (
-                        <span key={ch} className="rounded bg-white/5 border border-white/10 px-1.5 py-0.2 text-[8px] font-mono text-slate-400">
+                        <span key={ch} className="rounded bg-white/[0.04] border border-white/[0.08] px-1.5 py-0.5 text-[9px] text-slate-400 font-mono">
                           {ch}
                         </span>
                       ))}
                     </div>
                   </div>
 
-                  {/* Card Action Buttons */}
-                  <div className="mt-4 pt-3 border-t border-white/10 flex flex-col gap-1.5">
+                  {/* Buttons */}
+                  <div className="mt-4 pt-3 border-t border-white/[0.08] flex flex-col gap-2">
                     <button
                       onClick={() => handleOpenBroadcast(channel)}
-                      className="w-full flex items-center justify-center gap-1.5 rounded border border-cyan-400/40 bg-cyan-950/40 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-900/50 transition cursor-pointer"
+                      className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-sky-400/40 bg-sky-500/15 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-500/25 transition cursor-pointer"
                     >
                       <Sliders className="h-3 w-3" />
-                      <span>Configure & Broadcast</span>
+                      <span>Preview & Customize</span>
                     </button>
                     <button
                       onClick={() => handleQuickDispatch(channel)}
-                      className="w-full flex items-center justify-center gap-1.5 rounded border border-white/15 bg-white/5 py-1 text-[11px] font-mono text-slate-300 hover:bg-white/10 transition cursor-pointer"
+                      className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] py-1 text-xs text-slate-300 hover:bg-white/[0.08] transition cursor-pointer font-mono"
                     >
-                      <Send className="h-2.5 w-2.5" />
-                      <span>Quick Standard Send</span>
+                      <Send className="h-3 w-3" />
+                      <span>Send Standard Notice</span>
                     </button>
                   </div>
                 </div>
@@ -672,201 +808,32 @@ export default function ResponseConsole({
           </div>
         </section>
 
-        {/* ── SECTION 3: FARMER RESIDUE COLLECTION & WHAT-IF INTERVENTION ── */}
-        <section className="grid gap-5 xl:grid-cols-2">
-          {/* Farmer Residue Collection Routing Form */}
-          <div className="border border-lime-300/25 bg-[#0d160f] p-5 rounded-md flex flex-col justify-between space-y-4 shadow-xl">
-            <div>
-              <div className="flex items-center justify-between border-b border-lime-400/15 pb-3">
-                <div className="flex items-center gap-2 text-lime-200">
-                  <Truck className="h-4 w-4 text-lime-400" />
-                  <h2 className="text-sm font-bold uppercase tracking-wider">
-                    Agricultural Residue Collection Routing
-                  </h2>
-                </div>
-                <span className="rounded bg-lime-950/80 border border-lime-500/30 px-2 py-0.5 text-[10px] font-mono font-bold text-lime-300">
-                  FARMER CO-OP INTERFACE
-                </span>
-              </div>
-
-              <p className="mt-2 text-xs text-slate-400 leading-relaxed font-sans">
-                Deploy contracted machinery fleets to collect unburnt paddy straw clusters identified through satellite FIRMS thermal telemetry and prevailing wind trajectories.
-              </p>
-
-              {/* Form Controls */}
-              <div className="mt-4 space-y-3 text-xs">
-                <div>
-                  <label className="text-slate-300 block font-medium mb-1">Select Offtake / Logistics Partner</label>
-                  <select
-                    value={selectedPartnerId}
-                    onChange={(e) => setSelectedPartnerId(e.target.value)}
-                    className="w-full rounded border border-white/15 bg-[#142016] px-3 py-1.5 text-xs text-white focus:border-lime-400 focus:outline-none cursor-pointer font-mono"
-                  >
-                    {partners.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.region} • {p.service})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-slate-300 block font-medium mb-1">Target Farming Sector</label>
-                    <input
-                      type="text"
-                      value={collectionRegion}
-                      onChange={(e) => setCollectionRegion(e.target.value)}
-                      className="w-full rounded border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white focus:border-lime-400 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-slate-300 font-medium">Residue Tonnage</label>
-                      <span className="font-mono text-lime-300 font-bold">{collectionTons} Tonnes</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="20"
-                      max="500"
-                      step="10"
-                      value={collectionTons}
-                      onChange={(e) => setCollectionTons(Number(e.target.value))}
-                      className="w-full accent-lime-400 cursor-pointer h-1.5 bg-white/10 rounded"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-slate-300 block font-medium mb-1">Logistics & Driver Dispatch Note</label>
-                  <textarea
-                    rows={2}
-                    value={collectionMessage}
-                    onChange={(e) => setCollectionMessage(e.target.value)}
-                    className="w-full rounded border border-white/15 bg-black/40 p-2 text-xs text-slate-200 focus:border-lime-400 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Receipt Code Banner */}
-              {collectionReceipt && (
-                <div className="mt-3 rounded border border-emerald-400/40 bg-emerald-950/40 p-2.5 text-xs font-mono text-emerald-300 flex items-center gap-2 animate-in fade-in duration-200">
-                  <BadgeCheck className="h-4 w-4 shrink-0" />
-                  <span>{collectionReceipt}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Action CTA */}
-            <div className="border-t border-lime-400/15 pt-3.5 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-[11px] font-mono text-slate-400">
-                Aadhaar DBT linked &bull; Minimum floor ₹1,850/t
-              </span>
-              <button
-                onClick={handleSubmitCollection}
-                disabled={collectionLoading}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded border border-lime-400 bg-lime-500/25 px-5 py-2 text-xs font-bold text-lime-100 hover:bg-lime-500/40 shadow-lg transition cursor-pointer"
-              >
-                <Truck className="h-3.5 w-3.5 text-lime-300" />
-                <span>{collectionLoading ? 'Dispatching...' : 'Dispatch Collection Fleet'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Right: Quantify Intervention with What-If Lab */}
-          <div className="border border-cyan-300/25 bg-[#0b161f] p-5 rounded-md flex flex-col justify-between space-y-4 shadow-xl">
-            <div>
-              <div className="flex items-center justify-between border-b border-cyan-400/15 pb-3">
-                <div className="flex items-center gap-2 text-cyan-200">
-                  <HeartPulse className="h-4 w-4 text-cyan-400" />
-                  <h2 className="text-sm font-bold uppercase tracking-wider">
-                    Quantify Intervention & Air Quality Impact
-                  </h2>
-                </div>
-                <span className="rounded bg-cyan-950/80 border border-cyan-500/30 px-2 py-0.5 text-[10px] font-mono font-bold text-cyan-300">
-                  ANALYTICS GATEWAY
-                </span>
-              </div>
-
-              <p className="mt-2 text-xs text-slate-300 leading-relaxed font-sans">
-                Directly connect current dispatch decisions to the live-calibrated physics simulation engine. Model the precise downwind PM2.5 reduction achieved when agricultural stubble is diverted from burning.
-              </p>
-
-              {/* Projected Benefits Breakdown */}
-              <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="rounded border border-white/10 bg-black/40 p-3">
-                  <span className="text-[10px] font-mono text-slate-400 block uppercase">PM2.5 AVOIDED</span>
-                  <span className="font-mono font-bold text-cyan-300 text-base mt-0.5 block">
-                    {(collectionTons * 1.5).toFixed(0)} kg
-                  </span>
-                  <span className="text-[9px] text-slate-500">at source</span>
-                </div>
-                <div className="rounded border border-white/10 bg-black/40 p-3">
-                  <span className="text-[10px] font-mono text-slate-400 block uppercase">EST. AQI DROP</span>
-                  <span className="font-mono font-bold text-emerald-300 text-base mt-0.5 block">
-                    -{(collectionTons * 0.12).toFixed(1)} pts
-                  </span>
-                  <span className="text-[9px] text-slate-500">downwind NCR</span>
-                </div>
-                <div className="rounded border border-white/10 bg-black/40 p-3">
-                  <span className="text-[10px] font-mono text-slate-400 block uppercase">CO2 EQUIV</span>
-                  <span className="font-mono font-bold text-amber-300 text-base mt-0.5 block">
-                    {(collectionTons * 1.46).toFixed(0)} t
-                  </span>
-                  <span className="text-[9px] text-slate-500">carbon offset</span>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded bg-cyan-950/30 border border-cyan-500/20 p-3 text-xs text-slate-300 space-y-1">
-                <div className="font-semibold text-cyan-300 flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  WRF-Chem Coupled Atmospheric Scavenging
-                </div>
-                <p className="text-[11px] leading-relaxed text-slate-300">
-                  Pre-populates the 72-hour What-If laboratory with active fire radiative power (FRP) and prevailing northwesterly advection vectors.
-                </p>
-              </div>
-            </div>
-
-            {/* Gateway CTA */}
-            <div className="border-t border-cyan-400/15 pt-3.5 flex justify-end">
-              <button
-                onClick={onOpenWhatIf}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded border border-cyan-400 bg-cyan-500/25 px-5 py-2 text-xs font-bold text-cyan-100 hover:bg-cyan-500/40 shadow-lg transition cursor-pointer"
-              >
-                <span>Launch What-If Stubble Diversion Simulator</span>
-                <ExternalLink className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* ── SECTION 4: REAL-TIME ACTION DISPATCH AUDIT QUEUE TABLE ── */}
-        <section className="border border-white/10 bg-[#090e14] p-5 rounded-md shadow-xl space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+        {/* ── SECTION 4: RECENT DISPATCH AUDIT LOG ── */}
+        <section className="rounded-2xl border border-white/[0.08] bg-[#090e14] p-5 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
             <div>
               <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-cyan-400" />
-                <h2 className="text-sm font-bold uppercase tracking-wider text-white">
-                  Real-Time Action Dispatch Audit Queue
+                <FileText className="h-4 w-4 text-sky-400" />
+                <h2 className="text-sm font-bold tracking-wide text-white">
+                  Recent Dispatches & Action History
                 </h2>
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Live log of statutory advisories, broadcast dispatches, and emergency escalations issued through this console.
+              <p className="text-xs text-slate-400 mt-0.5">
+                Log of advisories, notices, and enforcement actions dispatched for <b>{stationDisplayName}</b> and Delhi NCR.
               </p>
             </div>
 
-            {/* Filter Buttons & Refresh */}
-            <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
-              <span className="text-slate-500 uppercase mr-1 hidden sm:inline">Filter:</span>
-              {['all', 'citizens', 'schools', 'municipality', 'traffic', 'grap'].map((filter) => (
+            {/* Filter pills & refresh */}
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-slate-500 text-[10px] font-mono mr-1 hidden sm:inline">FILTER:</span>
+              {['all', 'citizens', 'schools', 'municipality', 'traffic'].map((filter) => (
                 <button
                   key={filter}
                   onClick={() => setQueueFilter(filter)}
-                  className={`px-2 py-1 rounded uppercase transition cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs capitalize transition cursor-pointer ${
                     queueFilter === filter
-                      ? 'bg-cyan-500/25 text-cyan-300 font-bold border border-cyan-400/40'
-                      : 'text-slate-400 hover:text-white bg-white/5 border border-white/5'
+                      ? 'bg-sky-500/20 text-sky-200 font-semibold border border-sky-400/40'
+                      : 'text-slate-400 hover:text-white bg-white/[0.03] border border-white/[0.06]'
                   }`}
                 >
                   {filter}
@@ -875,8 +842,8 @@ export default function ResponseConsole({
               <button
                 onClick={fetchActions}
                 disabled={queueLoading}
-                className="flex items-center gap-1 px-2.5 py-1 rounded border border-white/15 bg-white/5 text-slate-300 hover:text-white transition cursor-pointer ml-1"
-                title="Refresh Action Queue"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-white/10 bg-white/[0.04] text-slate-300 hover:text-white transition cursor-pointer ml-1"
+                title="Refresh log"
               >
                 <RefreshCw className={`h-3 w-3 ${queueLoading ? 'animate-spin' : ''}`} />
                 <span>Refresh</span>
@@ -884,77 +851,54 @@ export default function ResponseConsole({
             </div>
           </div>
 
-          {/* Audit Queue Table */}
-          <div className="overflow-x-auto rounded border border-white/10">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-[#0e1620] text-slate-400 text-[10px] uppercase border-b border-white/10">
+          {/* Action Log Table */}
+          <div className="overflow-x-auto rounded-xl border border-white/[0.08]">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#0e1620] text-slate-400 text-[10px] uppercase font-mono border-b border-white/[0.08]">
                 <tr>
-                  <th className="p-3">Action Ref</th>
-                  <th className="p-3">Time</th>
-                  <th className="p-3">Stakeholder</th>
-                  <th className="p-3">Station</th>
+                  <th className="p-3">Reference</th>
+                  <th className="p-3">Target Audience</th>
+                  <th className="p-3">Region</th>
                   <th className="p-3">Severity</th>
                   <th className="p-3">Status</th>
-                  <th className="p-3">Dispatched Advisory / Message</th>
-                  <th className="p-3 text-right">Action</th>
+                  <th className="p-3">Advisory Message</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 text-slate-300">
-                {filteredQueue.length > 0 ? (
-                  filteredQueue.map((item) => (
-                    <tr key={item.id} className="hover:bg-white/[0.03] transition">
-                      <td className="p-3 font-bold text-cyan-300">{item.id}</td>
-                      <td className="p-3 text-slate-400 whitespace-nowrap">
-                        {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <tbody className="divide-y divide-white/[0.05]">
+                {filteredQueue.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-slate-500">
+                      No dispatches recorded yet in this session.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredQueue.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-white/[0.02] transition">
+                      <td className="p-3 font-mono text-slate-400 font-medium text-[11px]">
+                        {item.id.slice(0, 10)}
                       </td>
-                      <td className="p-3 capitalize font-medium text-white">{item.stakeholder}</td>
-                      <td className="p-3 uppercase text-slate-400">{item.station_id}</td>
+                      <td className="p-3 font-semibold text-white capitalize">
+                        {item.stakeholder.replace(/_/g, ' ')}
+                      </td>
+                      <td className="p-3 font-mono text-slate-300 text-[11px] uppercase">
+                        {item.station_id.replace(/_/g, ' ')}
+                      </td>
                       <td className="p-3">
-                        <span
-                          className={`rounded px-1.5 py-0.2 text-[9px] font-bold uppercase ${
-                            item.severity?.toLowerCase().includes('critical') || item.severity?.toLowerCase().includes('severe')
-                              ? 'bg-rose-950 text-rose-300 border border-rose-500/30'
-                              : 'bg-yellow-950 text-yellow-300 border border-yellow-500/30'
-                          }`}
-                        >
+                        <span className="rounded px-2 py-0.5 text-[9px] font-mono font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase">
                           {item.severity}
                         </span>
                       </td>
                       <td className="p-3">
-                        <span className="rounded bg-emerald-950/80 border border-emerald-500/30 px-1.5 py-0.2 text-[9px] text-emerald-300 font-bold">
-                          {item.status || 'DISPATCHED'}
+                        <span className="flex items-center gap-1 text-emerald-400 text-[11px] font-medium">
+                          <CheckCircle2 className="h-3 w-3" />
+                          <span>Sent</span>
                         </span>
                       </td>
-                      <td className="p-3 max-w-xs truncate font-sans text-xs text-slate-300">
+                      <td className="p-3 text-slate-300 max-w-md truncate">
                         {item.message}
-                      </td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => {
-                            api.queueResponseAction({
-                              action_type: `${item.action_type}_reissue`,
-                              stakeholder: item.stakeholder,
-                              station_id: item.station_id,
-                              severity: item.severity,
-                              message: item.message,
-                              source: 'Console Re-issue'
-                            });
-                            showToast('Action Re-issued', `Re-transmitted ${item.id} to ${item.stakeholder}.`);
-                            fetchActions();
-                          }}
-                          className="rounded border border-cyan-400/30 bg-cyan-950/40 px-2 py-0.5 text-[10px] font-mono text-cyan-300 hover:bg-cyan-900/50 transition cursor-pointer"
-                        >
-                          Re-issue
-                        </button>
                       </td>
                     </tr>
                   ))
-                ) : (
-                  <tr>
-                    <td colSpan={8} className="p-6 text-center text-slate-500 font-sans text-xs">
-                      No dispatched actions found matching filter &quot;{queueFilter}&quot;. Use the stakeholder cards above to broadcast alerts.
-                    </td>
-                  </tr>
                 )}
               </tbody>
             </table>
@@ -962,109 +906,103 @@ export default function ResponseConsole({
         </section>
       </div>
 
-      {/* ── CONFIGURE & BROADCAST MODAL ── */}
+      {/* ── BROADCAST MODAL ── */}
       {broadcastModalOpen && activeChannel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-lg border border-cyan-400/40 bg-[#0a1017] p-5 sm:p-6 shadow-2xl text-slate-100 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
+          <div className="bg-[#0e1520] border border-white/15 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-in fade-in duration-200">
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded border border-cyan-400/40 bg-cyan-950/60 text-cyan-300">
-                  <Megaphone className="h-5 w-5" />
+            <div className="p-5 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className={`p-2 rounded-lg ${activeChannel.bgColor}`}>
+                  <activeChannel.icon className={`h-4 w-4 ${activeChannel.accentColor}`} />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white tracking-wide">
-                    Configure Tactical Broadcast: {activeChannel.title}
-                  </h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{activeChannel.audience}</p>
+                  <h3 className="text-sm font-bold text-white">Broadcast to {activeChannel.title}</h3>
+                  <p className="text-xs text-slate-400">Target Region: {stationDisplayName}</p>
                 </div>
               </div>
               <button
                 onClick={() => setBroadcastModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded hover:bg-white/10 transition cursor-pointer"
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Broadcast Message Editor */}
-            <div className="space-y-3 text-xs">
+            {/* Modal Form */}
+            <div className="p-5 space-y-4 text-xs">
               <div>
-                <label className="text-slate-300 block font-medium mb-1">Broadcast Bulletin Text</label>
-                <textarea
-                  rows={4}
-                  value={broadcastText}
-                  onChange={(e) => setBroadcastText(e.target.value)}
-                  className="w-full rounded border border-white/15 bg-black/50 p-3 text-xs text-white focus:border-cyan-400 focus:outline-none font-sans leading-relaxed"
-                />
+                <label className="text-slate-300 block font-semibold mb-1">Advisory Priority</label>
+                <div className="flex gap-2">
+                  {['Standard Advisory', 'Urgent Alert', 'Emergency Notice'].map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setBroadcastPriority(p)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
+                        broadcastPriority === p
+                          ? 'bg-sky-500/20 text-sky-200 border-sky-400/50'
+                          : 'bg-white/[0.03] text-slate-400 border-white/10 hover:text-white'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Delivery Mediums */}
               <div>
-                <label className="text-slate-300 block font-medium mb-1.5">Select Distribution Gateways</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label className="text-slate-300 block font-semibold mb-1">Communication Channels</label>
+                <div className="flex flex-wrap gap-1.5">
                   {activeChannel.channels.map((ch) => {
                     const isSelected = selectedMediums.includes(ch);
                     return (
-                      <div
+                      <button
                         key={ch}
                         onClick={() => {
                           setSelectedMediums((prev) =>
                             isSelected ? prev.filter((m) => m !== ch) : [...prev, ch]
                           );
                         }}
-                        className={`cursor-pointer rounded border p-2 text-xs flex items-center gap-2 transition select-none ${
+                        className={`px-2.5 py-1 rounded-lg text-xs transition cursor-pointer flex items-center gap-1.5 ${
                           isSelected
-                            ? 'border-cyan-400 bg-cyan-950/40 text-cyan-200'
-                            : 'border-white/10 bg-white/5 text-slate-400 hover:border-white/20'
+                            ? 'bg-sky-500/20 text-sky-200 border border-sky-400/50 font-medium'
+                            : 'bg-white/[0.03] text-slate-400 border border-white/10'
                         }`}
                       >
-                        <CheckSquare className={`h-4 w-4 ${isSelected ? 'text-cyan-400' : 'text-slate-500'}`} />
-                        <span className="font-mono text-[11px]">{ch}</span>
-                      </div>
+                        <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-sky-400' : 'bg-slate-500'}`} />
+                        <span>{ch}</span>
+                      </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Priority Selector */}
               <div>
-                <label className="text-slate-300 block font-medium mb-1.5">Alert Transmission Priority</label>
-                <div className="flex gap-2">
-                  {['NORMAL', 'HIGH', 'CRITICAL EMERGENCY'].map((prio) => (
-                    <button
-                      key={prio}
-                      onClick={() => setBroadcastPriority(prio)}
-                      className={`px-3 py-1.5 rounded text-xs font-mono font-bold transition cursor-pointer border ${
-                        broadcastPriority === prio
-                          ? prio === 'CRITICAL EMERGENCY'
-                            ? 'bg-rose-950 text-rose-300 border-rose-500/50 ring-1 ring-rose-500'
-                            : 'bg-orange-950 text-orange-300 border-orange-500/50 ring-1 ring-orange-500'
-                          : 'bg-white/5 text-slate-400 border-white/10 hover:border-white/20'
-                      }`}
-                    >
-                      {prio}
-                    </button>
-                  ))}
-                </div>
+                <label className="text-slate-300 block font-semibold mb-1">Message Content</label>
+                <textarea
+                  rows={4}
+                  value={broadcastText}
+                  onChange={(e) => setBroadcastText(e.target.value)}
+                  className="w-full rounded-xl border border-white/15 bg-black/40 p-3 text-xs text-white focus:border-sky-400 focus:outline-none leading-relaxed"
+                />
               </div>
             </div>
 
             {/* Modal Actions */}
-            <div className="flex flex-col sm:flex-row justify-end gap-2.5 border-t border-white/10 pt-3">
+            <div className="p-4 border-t border-white/10 flex items-center justify-end gap-2 bg-[#090e15]">
               <button
                 onClick={() => setBroadcastModalOpen(false)}
-                className="border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-white/20 rounded transition cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleTransmitBroadcast}
-                disabled={broadcasting}
-                className="flex items-center justify-center gap-2 rounded border border-cyan-400 bg-cyan-500/25 px-5 py-2 text-xs font-bold text-cyan-100 hover:bg-cyan-500/40 shadow-lg transition cursor-pointer"
+                disabled={broadcasting || !broadcastText.trim()}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-sky-500 hover:bg-sky-400 transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-lg"
               >
                 <Send className="h-3.5 w-3.5" />
-                <span>{broadcasting ? 'Transmitting...' : 'Confirm & Transmit Broadcast'}</span>
+                <span>{broadcasting ? 'Transmitting...' : 'Dispatch Broadcast'}</span>
               </button>
             </div>
           </div>

@@ -205,3 +205,18 @@ async def get_forecast_explanation(
     explanation["mode"] = settings.APP_MODE
 
     return ForecastExplanationResponse(**explanation)
+
+
+@router.post("/atmospheric/ask")
+async def ask_atmospheric_intelligence(
+    req: dict,
+    db: Session = Depends(get_db_session),
+    settings: Settings = Depends(get_app_settings)
+):
+    """Aliased atmospheric query endpoint for Ask AeroSense Intelligence."""
+    from app.schemas.intelligence import AtmosphericQueryRequest
+    from app.services.intelligence import IntelligenceService
+    service = IntelligenceService(db, settings)
+    request_obj = AtmosphericQueryRequest(**req)
+    return await service.answer_query(request_obj)
+

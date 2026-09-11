@@ -448,3 +448,35 @@ export interface TelemetryMeshResponse {
   sources: TelemetrySourceItem[];
 }
 
+// ── AeroSense Intelligence & LLM Reasoning Types ──
+
+export interface AtmosphericQueryRequest {
+  query: string;
+  station_id?: string;
+  horizon_hours?: number;
+}
+
+export interface AtmosphericQueryResponse {
+  query: string;
+  assessment: string;
+  forecast_trajectory: string;
+  confidence: number; // 0.0 - 1.0
+  confidence_level: 'HIGH' | 'MODERATE' | 'CAUTIONARY';
+  confidence_drivers: string[];
+  primary_driver: string;
+  secondary_driver?: string | null;
+  ventilation_status: string;
+  ventilation_index: number;
+  regime: string;
+  inversion_risk: number;
+  evidence_sources: string[];
+  model_name: string;
+  suggested_actions: string[];
+  predicted_pm25?: number | null;
+  predicted_aqi?: number | null;
+  predicted_category?: string | null;
+  station_id?: string | null;
+  station_name?: string | null;
+  timestamp: string;
+}
+

@@ -254,12 +254,20 @@ export default function WorkbenchPage() {
         {currentView === 'what-if' ? (
           <WorkbenchWhatIf stations={stations} selectedStationId={selectedStationId} />
         ) : currentView === 'incident-command' ? (
-          <IncidentCommand activeFires={activeFires} observations={observations} />
+          <IncidentCommand
+            activeFires={activeFires}
+            observations={observations}
+            stations={stations}
+            selectedStationId={selectedStationId}
+            onSelectStation={handleSelectStation}
+          />
         ) : currentView === 'response-console' ? (
           <ResponseConsole
             forecast={forecast}
             observation={selectedObservation}
             stationId={selectedStationId}
+            stations={stations}
+            onSelectStation={handleSelectStation}
             onOpenWhatIf={() => setCurrentView('what-if')}
           />
         ) : currentView === 'evaluation' ? (
@@ -402,6 +410,7 @@ export default function WorkbenchPage() {
       <AskAeroSenseModal
         isOpen={askModalOpen}
         onClose={() => setAskModalOpen(false)}
+        stationId={selectedStationId}
         regime={regime}
         indices={indices}
         explanation={explanation}

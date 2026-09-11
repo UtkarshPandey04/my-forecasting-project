@@ -41,7 +41,7 @@ import {
   Sliders,
   ChevronRight
 } from 'lucide-react';
-import { ActiveFirePoint, Observation, DisasterRiskResponse, DisasterHazard, TelemetrySourceItem } from '@/lib/types';
+import { Station, ActiveFirePoint, Observation, DisasterRiskResponse, DisasterHazard, TelemetrySourceItem } from '@/lib/types';
 import { api } from '@/lib/api';
 
 // Dynamically import DisasterRiskMap to avoid SSR issues
@@ -60,6 +60,9 @@ const DisasterRiskMap = dynamic(() => import('@/components/map/DisasterRiskMap')
 interface IncidentCommandProps {
   activeFires: ActiveFirePoint[];
   observations: Record<string, Observation>;
+  stations?: Station[];
+  selectedStationId?: string;
+  onSelectStation?: (stationId: string) => void;
 }
 
 const DEFAULT_TELEMETRY_SOURCES: TelemetrySourceItem[] = [
@@ -556,7 +559,13 @@ const fallbackFires: ActiveFirePoint[] = [
   { id: 'demo-1', latitude: 29.6, longitude: 76.9, frp: 41, brightness: 332, confidence: 'high', acq_date: '', acq_time: '14:20', satellite: 'DEMO', source: 'demo' }
 ];
 
-export default function IncidentCommand({ activeFires, observations }: IncidentCommandProps) {
+export default function IncidentCommand({
+  activeFires,
+  observations,
+  stations,
+  selectedStationId,
+  onSelectStation
+}: IncidentCommandProps) {
   // State for alerts & response actions
   const [completedActions, setCompletedActions] = useState<Record<string, { timestamp: string }>>({});
   const [activeAlertModal, setActiveAlertModal] = useState<SmartAlertItem | null>(null);
@@ -671,7 +680,7 @@ export default function IncidentCommand({ activeFires, observations }: IncidentC
       await api.queueResponseAction({
         action_type: alert.id,
         stakeholder: 'operations',
-        station_id: 'anand_vihar',
+        station_id: selectedStationId || 'anand_vihar',
         severity: alert.severity.toLowerCase(),
         message: `Disaster response action dispatched for ${alert.title}: ${alert.recommendedResponse}`,
         source: 'AeroSense Incident Command'
@@ -763,10 +772,33 @@ export default function IncidentCommand({ activeFires, observations }: IncidentC
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            {/* Region / Station Selector */}
+            <div className="flex items-center gap-2 rounded border border-cyan-400/30 bg-[#0d1620] px-3 py-1.5 text-xs shadow-inner">
+              <MapPin className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+              <span className="text-slate-400 font-mono text-[10px] uppercase">Region:</span>
+              <select
+                value={selectedStationId || 'anand_vihar'}
+                onChange={(e) => onSelectStation && onSelectStation(e.target.value)}
+                className="bg-transparent text-white font-semibold text-xs focus:outline-none cursor-pointer pr-1"
+              >
+                {stations && stations.length > 0 ? (
+                  stations.map((s) => (
+                    <option key={s.id} value={s.id} className="bg-[#0b1016] text-slate-100">
+                      {s.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="anand_vihar" className="bg-[#0b1016] text-slate-100">
+                    Anand Vihar
+                  </option>
+                )}
+              </select>
+            </div>
+
             <button
               onClick={fetchRiskData}
               disabled={refreshing}
-              className="flex items-center gap-1.5 border border-cyan-300/30 bg-[#0d1620] px-3 py-1.5 text-xs text-cyan-200 hover:bg-[#122230] disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 border border-cyan-300/30 bg-[#0d1620] px-3 py-1.5 text-xs text-cyan-200 hover:bg-[#122230] disabled:opacity-50 transition-colors cursor-pointer"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               <span>Refresh AI Telemetry</span>

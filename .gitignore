@@ -24,6 +24,8 @@ venv/
 env/
 **/env/
 .env
+**/.env
+*.env
 
 # Data / Models / Cache
 data/*.db*

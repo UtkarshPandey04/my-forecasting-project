@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import ModeIndicator from '../status/ModeIndicator';
 import DataFreshnessStatus from '../status/DataFreshness';
@@ -19,13 +20,24 @@ export default function Header({
   return (
     <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 bg-slate-950 px-6 py-3">
       <div className="flex items-center gap-6">
-        <Link href="/" className="flex flex-col group">
-          <h1 className="text-lg font-semibold tracking-tight text-slate-100 group-hover:text-sky-400 transition-colors">
-            AeroSense
-          </h1>
-          <span className="text-[11px] text-slate-400">
-            Delhi NCR Coupled Air Quality & Weather Forecasting
-          </span>
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/25 flex items-center justify-center p-1 group-hover:border-sky-400/50 transition-all">
+            <Image
+              src="/logo.png"
+              alt="AeroSense Logo"
+              width={26}
+              height={26}
+              className="object-contain"
+            />
+          </div>
+          <div className="flex flex-col">
+            <h1 className="text-lg font-semibold tracking-tight text-slate-100 group-hover:text-sky-400 transition-colors">
+              AeroSense
+            </h1>
+            <span className="text-[11px] text-slate-400">
+              Delhi NCR Coupled Air Quality & Weather Forecasting
+            </span>
+          </div>
         </Link>
 
         {/* Navigation Tabs */}

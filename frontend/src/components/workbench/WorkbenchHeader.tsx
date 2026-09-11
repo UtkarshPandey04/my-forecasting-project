@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Activity,
   Search,
@@ -50,8 +51,14 @@ export default function WorkbenchHeader({
       {/* Left: Brand & Breadcrumb */}
       <div className="flex items-center gap-3">
         <Link href="/" className="flex items-center gap-2 group" title="Return to AeroSense Landing">
-          <div className="w-7 h-7 rounded-md bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 group-hover:border-sky-400/60 transition-colors">
-            <Activity className="w-3.5 h-3.5 text-sky-400" />
+          <div className="w-7 h-7 rounded-md bg-sky-500/10 border border-sky-500/25 flex items-center justify-center p-0.5 group-hover:border-sky-400/50 transition-all">
+            <Image
+              src="/logo.png"
+              alt="AeroSense Logo"
+              width={22}
+              height={22}
+              className="object-contain"
+            />
           </div>
           <span className="text-sm font-bold tracking-tight text-white">
             AeroSense

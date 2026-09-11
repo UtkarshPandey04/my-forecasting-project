@@ -41,6 +41,9 @@ logs/
 # Screenshots & Diagnostics
 *.png
 *.jpg
+!frontend/public/*.png
+!frontend/public/*.jpg
+!frontend/public/*.ico
 scratch/
 pytest_out.txt
 

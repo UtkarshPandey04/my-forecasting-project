@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import LandingNav from '@/components/landing/LandingNav';
 import AtmosphericCanvas from '@/components/landing/AtmosphericCanvas';
 import PipelineFlow from '@/components/landing/PipelineFlow';
@@ -486,8 +487,14 @@ export default function LandingPage() {
       <footer className="py-12 border-t border-white/[0.06] bg-[#04060a] text-xs text-slate-400">
         <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-sky-400" />
+            <div className="flex items-center gap-2.5">
+              <Image
+                src="/logo.png"
+                alt="AeroSense Logo"
+                width={22}
+                height={22}
+                className="object-contain"
+              />
               <span className="font-bold text-white tracking-tight text-sm">AeroSense</span>
             </div>
             <span className="hidden sm:inline text-slate-500">•</span>

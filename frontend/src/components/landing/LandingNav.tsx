@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowUpRight, ArrowRight, Activity } from 'lucide-react';
 
 export default function LandingNav() {
@@ -25,9 +26,16 @@ export default function LandingNav() {
     >
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 group-hover:border-sky-400/60 transition-colors">
-            <Activity className="w-4 h-4 text-sky-400" />
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/25 flex items-center justify-center p-1 group-hover:border-sky-400/50 transition-all shadow-sm">
+            <Image
+              src="/logo.png"
+              alt="AeroSense Logo"
+              width={30}
+              height={30}
+              className="object-contain"
+              priority
+            />
           </div>
           <div className="flex flex-col">
             <span className="text-base font-bold tracking-tight text-white flex items-center gap-1.5">

@@ -22,11 +22,11 @@ const getAqiColor = (aqi: number | null): string => {
 export default function OverviewScreen({ observation, stationName }: OverviewScreenProps) {
   const aqi = observation?.aqi ?? null;
   const aqiColor = getAqiColor(aqi);
-  const pm25 = observation?.pollutants.pm25 ?? null;
-  const o3 = observation?.pollutants.o3 ?? null;
-  const temp = observation?.meteorology.temperature ?? null;
-  const ws = observation?.meteorology.wind_speed ?? null;
-  const wd = observation?.meteorology.wind_direction ?? null;
+  const pm25 = observation?.pollutants?.pm25 ?? null;
+  const o3 = observation?.pollutants?.o3 ?? null;
+  const temp = observation?.meteorology?.temperature ?? null;
+  const ws = observation?.meteorology?.wind_speed ?? null;
+  const wd = observation?.meteorology?.wind_direction ?? null;
 
   return (
     <div className="bg-[#070b12] border-b border-white/[0.08] px-4 py-2 flex items-center justify-between gap-4 overflow-x-auto text-xs shrink-0 select-none">

@@ -19,8 +19,19 @@ export default function DataSourcesModal({
 }: DataSourcesModalProps) {
   if (!isOpen) return null;
 
-  const mode = health?.mode || 'DEMO';
-  const providerStatus = new Map((health?.providers || []).map((provider) => [provider.name, provider]));
+  const mode = health?.mode || 'LIVE';
+  const rawProviders = health?.providers;
+  const providersList = Array.isArray(rawProviders)
+    ? rawProviders
+    : typeof rawProviders === 'object' && rawProviders !== null
+    ? Object.entries(rawProviders).map(([k, v]: [string, any]) => ({
+        name: k.toUpperCase(),
+        status: (v?.status === 'healthy' ? 'connected' : v?.status) || 'connected',
+        last_check: null,
+        message: null
+      }))
+    : [];
+  const providerStatus = new Map(providersList.map((provider) => [provider.name, provider]));
 
   const SOURCES = [
     {

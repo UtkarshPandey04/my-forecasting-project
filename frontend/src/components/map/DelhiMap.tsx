@@ -493,10 +493,10 @@ export default function DelhiMap({
 
               {/* Pollutants mini grid */}
               <div className="grid grid-cols-2 gap-1 text-[10px] font-mono mb-2 bg-black/40 p-1.5 rounded border border-white/5">
-                <div>PM2.5: <strong className="text-cyan-300">{hoveredStation.observation?.pollutants.pm25?.toFixed(1) ?? '--'} µg</strong></div>
-                <div>PM10: <strong className="text-slate-200">{hoveredStation.observation?.pollutants.pm10?.toFixed(0) ?? '--'} µg</strong></div>
-                <div>NO2: <strong className="text-slate-200">{hoveredStation.observation?.pollutants.no2?.toFixed(1) ?? '--'} µg</strong></div>
-                <div>O3: <strong className="text-slate-200">{hoveredStation.observation?.pollutants.o3?.toFixed(1) ?? '--'} µg</strong></div>
+                <div>PM2.5: <strong className="text-cyan-300">{hoveredStation.observation?.pollutants?.pm25?.toFixed(1) ?? '--'} µg</strong></div>
+                <div>PM10: <strong className="text-slate-200">{hoveredStation.observation?.pollutants?.pm10?.toFixed(0) ?? '--'} µg</strong></div>
+                <div>NO2: <strong className="text-slate-200">{hoveredStation.observation?.pollutants?.no2?.toFixed(1) ?? '--'} µg</strong></div>
+                <div>O3: <strong className="text-slate-200">{hoveredStation.observation?.pollutants?.o3?.toFixed(1) ?? '--'} µg</strong></div>
               </div>
 
               {/* Regional Weather Grid */}

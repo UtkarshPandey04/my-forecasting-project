@@ -26,46 +26,52 @@ class DemoDataProvider(AQDataProvider, WeatherDataProvider):
         day_of_year = dt.timetuple().tm_yday
         seed = self._get_seed(station_id, dt)
 
-        # Seasonal factor: higher in winter (Dec-Jan ~day 350-30)
+        # Seasonal factor: higher in winter (Dec-Jan ~day 350-30), moderate in monsoon/September
         seasonal = math.cos(2 * math.pi * (day_of_year - 15) / 365)
-        seasonal_factor = 1.0 + 0.5 * seasonal  # 0.5x summer to 1.5x winter
+        seasonal_factor = 1.0 + 0.45 * seasonal  # ~0.55x in late monsoon to 1.45x in winter
 
         # Diurnal factor: peaks at ~2-6am (boundary layer collapse)
-        diurnal = math.cos(2 * math.pi * (hour - 3) / 24)
-        diurnal_factor = 1.0 + 0.3 * diurnal
+        diurnal = math.cos(2 * math.pi * (hour - 4) / 24)
+        diurnal_factor = 1.0 + 0.25 * diurnal
 
-        # Station-specific base
+        # Station-specific base: calibrated for realistic Delhi NCR micro-airsheds
         station_hash = int(hashlib.md5(str(station_id).encode()).hexdigest()[:6], 16)
-        base_pm25 = 80 + (station_hash % 60)
+        base_pm25 = 55.0 + (station_hash % 35)
 
-        noise = (seed - 0.5) * 40
-        pm25 = max(10, base_pm25 * seasonal_factor * diurnal_factor + noise)
-        pm10 = pm25 * 1.8 + seed * 20
+        # Smooth, deterministic micro-adjustment without erratic noise jumps
+        stable_adj = ((station_hash % 17) - 8) * 0.8
+        pm25 = max(25.0, round(base_pm25 * seasonal_factor * diurnal_factor + stable_adj, 1))
+        pm10 = round(pm25 * 1.7 + (station_hash % 10), 1)
+
+        # Diurnal boundary layer height: shallow at night (320-450m), deep in afternoon (1200-1800m)
+        is_day = 8 <= hour <= 18
+        pblh = round(1350.0 + 450.0 * math.sin(math.pi * (hour - 8) / 10), 0) if is_day else round(360.0 + 60.0 * math.cos(hour), 0)
 
         # Meteorological data
-        temp = 28 + 7 * math.sin(2 * math.pi * (hour - 14) / 24) + (seed - 0.5) * 4
-        humidity = 55 + 25 * math.cos(2 * math.pi * (hour - 4) / 24) + (seed - 0.5) * 10
-        wind_speed = max(0.5, 2 + 4 * math.sin(2 * math.pi * (hour - 12) / 24) ** 2 + seed * 2)
-        wind_direction = (station_hash + hour * 15 + seed * 50) % 360
+        temp = round(28.0 + 6.0 * math.sin(2 * math.pi * (hour - 14) / 24) + ((station_hash % 5) - 2) * 0.3, 1)
+        humidity = round(max(35.0, min(95.0, 62.0 + 20.0 * math.cos(2 * math.pi * (hour - 4) / 24))), 1)
+        wind_speed = round(max(1.0, 2.4 + 1.2 * math.sin(2 * math.pi * (hour - 13) / 24) ** 2), 1)
+        wind_direction = round(float((295 + (station_hash % 25)) % 360), 1)
 
         # Ozone peaks during daytime photochemistry
-        o3 = max(5, 40 + 50 * math.sin(2 * math.pi * (hour - 14) / 24))
+        o3 = round(max(12.0, 25.0 + 35.0 * math.sin(math.pi * max(0, hour - 7) / 11) if 7 <= hour <= 19 else 15.0), 1)
 
         return {
             "station_id": station_id,
             "timestamp": dt,
             "source": "DEMO",
-            "pm25": round(pm25, 1),
-            "pm10": round(pm10, 1),
-            "no2": round(max(5, pm25 * 0.35 + (seed - 0.5) * 15), 1),
-            "so2": round(max(2, pm25 * 0.15 + (seed - 0.5) * 8), 1),
-            "co": round(max(0.2, pm25 * 0.012 + (seed - 0.5) * 0.3), 2),
-            "o3": round(o3, 1),
-            "nh3": round(max(5, pm25 * 0.12 + (seed - 0.5) * 10), 1),
-            "temperature": round(temp, 1),
-            "humidity": round(max(10, min(98, humidity)), 1),
-            "wind_speed": round(wind_speed, 1),
-            "wind_direction": round(wind_direction, 1),
+            "pm25": pm25,
+            "pm10": pm10,
+            "no2": round(max(15.0, pm25 * 0.32 + (station_hash % 8)), 1),
+            "so2": round(max(8.0, pm25 * 0.12 + (station_hash % 5)), 1),
+            "co": round(max(0.4, pm25 * 0.010), 2),
+            "o3": o3,
+            "nh3": round(max(8.0, pm25 * 0.15), 1),
+            "temperature": temp,
+            "humidity": humidity,
+            "wind_speed": wind_speed,
+            "wind_direction": wind_direction,
+            "boundary_layer_height": pblh,
         }
 
     # ── AQDataProvider interface ──

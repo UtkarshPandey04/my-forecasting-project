@@ -12,12 +12,12 @@ class CPCBProvider(AQDataProvider):
         self.last_error = None
 
     async def _fetch_records(self) -> List[Dict]:
-        if datetime.now() < self._cache_expires_at:
+        if datetime.now() < self._cache_expires_at and self._records_cache:
             return self._records_cache
         if not self.api_key:
-            return []
+            return self._records_cache or []
         try:
-            timeout = httpx.Timeout(connect=3.0, read=8.0, write=3.0, pool=3.0)
+            timeout = httpx.Timeout(connect=5.0, read=15.0, write=5.0, pool=5.0)
             async with httpx.AsyncClient(
                 timeout=timeout,
                 trust_env=False,
@@ -29,14 +29,20 @@ class CPCBProvider(AQDataProvider):
                 )
                 response.raise_for_status()
                 records = response.json().get("records", [])
-                self.last_error = None if records else "CPCB returned no records"
-                self._records_cache = records
-                self._cache_expires_at = datetime.now() + timedelta(minutes=5)
-                return records
+                if records:
+                    self.last_error = None
+                    self._records_cache = records
+                    self._cache_expires_at = datetime.now() + timedelta(minutes=15)
+                    return records
+                self.last_error = "CPCB returned no records"
+                return self._records_cache or []
         except Exception as exc:
             self.last_error = f"{type(exc).__name__}: {str(exc)[:160]}"
-            self._records_cache = []
-            self._cache_expires_at = datetime.now() + timedelta(minutes=1)
+            # Keep previous cache if available to avoid dropouts
+            if self._records_cache:
+                self._cache_expires_at = datetime.now() + timedelta(minutes=5)
+                return self._records_cache
+            self._cache_expires_at = datetime.now() + timedelta(minutes=2)
             return []
         
     async def fetch_current(self, station_id: str, latitude: float = 0.0, longitude: float = 0.0) -> Optional[Dict]:
@@ -44,38 +50,55 @@ class CPCBProvider(AQDataProvider):
             return None
             
         records = await self._fetch_records()
+        if not records:
+            return None
+
         station_key = station_id.lower().replace("_", " ")
         usable_records = [
             record for record in records
             if record.get("avg_value", record.get("pollutant_avg")) not in (None, "", "NA", "na")
         ]
-        matching_records = [
-            record for record in records
-            if station_key in str(record.get("station", "")).lower()
-            and record in usable_records
-        ]
+
+        # 1. First priority: match station name AND ensure Delhi/NCR state/proximity
+        matching_records = []
+        for record in usable_records:
+            st_name = str(record.get("station", "")).lower()
+            st_state = str(record.get("state", "")).lower()
+            st_city = str(record.get("city", "")).lower()
+            
+            # Check name match
+            if station_key in st_name:
+                # Disallow distant matches outside Delhi NCR (e.g. Hapur matching Anand Vihar)
+                try:
+                    r_lat = float(record.get("latitude", 0))
+                    r_lon = float(record.get("longitude", 0))
+                    if latitude > 0 and longitude > 0:
+                        dist_deg = ((r_lat - latitude) ** 2 + (r_lon - longitude) ** 2) ** 0.5
+                        if dist_deg > 0.20:  # > ~20km away
+                            continue
+                    elif "delhi" not in st_state and "delhi" not in st_city:
+                        continue
+                except (TypeError, ValueError):
+                    pass
+                matching_records.append(record)
+
         source = "CPCB_CAAQMS"
         if not matching_records:
-            # CPCB station labels do not always match the app's station catalog.
-            # Fall back to the nearest Delhi/NCR station in the live response.
+            # Fall back to nearest Delhi NCR station within 15km
             candidates = []
             for record in usable_records:
                 try:
                     record_lat = float(record.get("latitude"))
                     record_lon = float(record.get("longitude"))
-                    if abs(record_lat - latitude) <= 0.35 and abs(record_lon - longitude) <= 0.35:
-                        candidates.append(record)
+                    dist = ((record_lat - latitude) ** 2 + (record_lon - longitude) ** 2) ** 0.5
+                    if dist <= 0.15:  # Within ~15km
+                        candidates.append((dist, record))
                 except (TypeError, ValueError):
                     continue
             if candidates:
-                nearest_station = min(
-                    candidates,
-                    key=lambda record: (
-                        (float(record.get("latitude")) - latitude) ** 2
-                        + (float(record.get("longitude")) - longitude) ** 2
-                    ),
-                ).get("station")
-                matching_records = [record for record in candidates if record.get("station") == nearest_station]
+                candidates.sort(key=lambda x: x[0])
+                nearest_station = candidates[0][1].get("station")
+                matching_records = [record for _, record in candidates if record.get("station") == nearest_station]
                 source = "CPCB_CAAQMS_NEAREST"
             else:
                 return None
@@ -91,7 +114,7 @@ class CPCBProvider(AQDataProvider):
             avg = r.get("avg_value", r.get("pollutant_avg"))
             try:
                 val = float(avg) if avg not in (None, "NA") else None
-                if val is not None:
+                if val is not None and val >= 0:
                     pollutant_map = {
                         "PM2.5": "pm25", "PM10": "pm10", "NO2": "no2",
                         "SO2": "so2", "CO": "co", "OZONE": "o3",
@@ -100,7 +123,7 @@ class CPCBProvider(AQDataProvider):
                     key = pollutant_map.get(pollutant_id)
                     if key:
                         # CPCB CO is mg/m³ for NAQI. Some data.gov.in rows arrive as µg/m³.
-                        if key == "co" and val > 12:
+                        if key == "co" and val > 15:
                             val = val / 1000.0
                         result[key] = val
             except (ValueError, TypeError):

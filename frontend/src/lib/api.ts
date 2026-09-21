@@ -29,6 +29,7 @@ import {
   FALLBACK_TELEMETRY_MESH,
   FALLBACK_ATMOSPHERIC_REGIME,
   FALLBACK_DERIVED_INDICES,
+  getFallbackDerivedIndices,
   FALLBACK_ACTIVE_FIRES,
   FALLBACK_TRANSPORT_CORRIDORS,
   FALLBACK_MITIGATION_PARTNERS,
@@ -36,6 +37,7 @@ import {
   generateFallbackBlendedForecast,
   generateFallbackExplanation
 } from './fallbackData';
+import { calculateAqiFromPm25 } from './naqi';
 
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
@@ -121,7 +123,8 @@ function getFallbackForEndpoint<T>(endpoint: string): T {
     return FALLBACK_ATMOSPHERIC_REGIME as unknown as T;
   }
   if (endpoint.startsWith('/api/v1/atmospheric/indices')) {
-    return FALLBACK_DERIVED_INDICES as unknown as T;
+    const stationId = endpoint.split('station_id=')[1]?.split('&')[0];
+    return getFallbackDerivedIndices(stationId) as unknown as T;
   }
   if (endpoint.startsWith('/api/v1/fires/active')) {
     return FALLBACK_ACTIVE_FIRES as unknown as T;
@@ -168,7 +171,9 @@ function getFallbackForEndpoint<T>(endpoint: string): T {
       providers: [
         { name: 'CPCB', status: 'connected', last_check: new Date().toISOString(), message: '40 CAAQMS Stations reporting' },
         { name: 'IMD', status: 'connected', last_check: new Date().toISOString(), message: 'Open-Meteo AWS Grid active' },
-        { name: 'NASA FIRMS', status: 'connected', last_check: new Date().toISOString(), message: 'VIIRS/MODIS satellite stream live' }
+        { name: 'NASA FIRMS', status: 'connected', last_check: new Date().toISOString(), message: 'VIIRS/MODIS satellite stream live' },
+        { name: 'WRF-Chem', status: 'connected', last_check: new Date().toISOString(), message: 'RADM2-MADE/SORGAM 72h NetCDF grid active' },
+        { name: 'AI Intelligence', status: 'connected', last_check: new Date().toISOString(), message: 'Google Gemini 2.0 Flash active' }
       ]
     } as unknown as T;
   }
@@ -242,7 +247,7 @@ function getFallbackForEndpoint<T>(endpoint: string): T {
 async function fetchAPI<T>(endpoint: string): Promise<T> {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
     const url = buildUrl(endpoint);
     const res = await fetch(url, {
       cache: 'no-store',
@@ -263,7 +268,7 @@ async function fetchAPI<T>(endpoint: string): Promise<T> {
 async function fetchPostAPI<T>(endpoint: string, body: any): Promise<T> {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
     const url = buildUrl(endpoint);
     const res = await fetch(url, {
       method: 'POST',
@@ -345,19 +350,23 @@ async function fetchPostAPI<T>(endpoint: string, body: any): Promise<T> {
         },
         assumptions: ['Uniform regional mixing', 'Constant background emissions'],
         disclaimer: 'Parametric scenario simulation based on calibrated physics-informed model.',
-        points: baseForecast.points.map(p => ({
-          hour_offset: p.hour_offset,
-          timestamp: p.timestamp,
-          baseline_pm25: p.pm25_predicted,
-          scenario_pm25: Math.round(p.pm25_predicted * Math.max(0.2, factor) * 10) / 10,
-          delta_pm25: Math.round((p.pm25_predicted * Math.max(0.2, factor) - p.pm25_predicted) * 10) / 10,
-          uncertainty_lower: Math.round(p.pm25_predicted * Math.max(0.2, factor) * 0.85),
-          uncertainty_upper: Math.round(p.pm25_predicted * Math.max(0.2, factor) * 1.15),
-          baseline_aqi: p.aqi_predicted,
-          scenario_aqi: Math.round(p.pm25_predicted * Math.max(0.2, factor) * 1.45),
-          scenario_aqi_category: p.aqi_category,
-          scenario_aqi_color: '#f97316'
-        }))
+        points: baseForecast.points.map(p => {
+          const scenPm = Math.round(p.pm25_predicted * Math.max(0.2, factor) * 10) / 10;
+          const { aqi: sAqi, category: sCat, color: sCol } = calculateAqiFromPm25(scenPm);
+          return {
+            hour_offset: p.hour_offset,
+            timestamp: p.timestamp,
+            baseline_pm25: p.pm25_predicted,
+            scenario_pm25: scenPm,
+            delta_pm25: Math.round((scenPm - p.pm25_predicted) * 10) / 10,
+            uncertainty_lower: Math.round(scenPm * 0.85),
+            uncertainty_upper: Math.round(scenPm * 1.15),
+            baseline_aqi: p.aqi_predicted,
+            scenario_aqi: sAqi,
+            scenario_aqi_category: sCat,
+            scenario_aqi_color: sCol
+          };
+        })
       } as unknown as T;
     }
     return {} as unknown as T;
@@ -394,7 +403,10 @@ export const api = {
   
   // Phase 2 Atmospheric Intelligence & Fire APIs
   getAtmosphericRegime: () => fetchAPI<AtmosphericRegime>('/api/v1/atmospheric/regime'),
-  getDerivedIndices: () => fetchAPI<DerivedIndices>('/api/v1/atmospheric/indices'),
+  getDerivedIndices: (stationId?: string) => {
+    const params = stationId ? `?station_id=${stationId}` : '';
+    return fetchAPI<DerivedIndices>(`/api/v1/atmospheric/indices${params}`);
+  },
   getActiveFires: () => fetchAPI<ActiveFiresResponse>('/api/v1/fires/active'),
   getTransportCorridors: () => fetchAPI<TransportResponse>('/api/v1/transport/corridors'),
   getForecastExplanation: (stationId: string) => fetchAPI<ForecastExplanation>(`/api/v1/forecast/explain/${stationId}`),

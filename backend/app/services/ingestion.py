@@ -9,11 +9,13 @@ from app.core.config import Settings
 from app.providers.demo import DemoDataProvider
 from app.providers.cpcb import CPCBProvider
 from app.providers.imd import IMDWeatherProvider
+from app.providers.openmeteo_aq import OpenMeteoAQProvider
 from app.models.station import Station
 from app.services.aqi import calculate_naqi
 
 _cpcb_provider: Optional[CPCBProvider] = None
 _imd_provider: Optional[IMDWeatherProvider] = None
+_openmeteo_aq_provider: Optional[OpenMeteoAQProvider] = None
 
 
 def _shared_cpcb(api_key: str) -> CPCBProvider:
@@ -30,6 +32,13 @@ def _shared_imd() -> IMDWeatherProvider:
     return _imd_provider
 
 
+def _shared_openmeteo_aq() -> OpenMeteoAQProvider:
+    global _openmeteo_aq_provider
+    if _openmeteo_aq_provider is None:
+        _openmeteo_aq_provider = OpenMeteoAQProvider()
+    return _openmeteo_aq_provider
+
+
 class IngestionService:
     def __init__(self, db: Session, settings: Settings):
         self.db = db
@@ -38,9 +47,11 @@ class IngestionService:
             self._demo = DemoDataProvider()
             self.aq_provider = self._demo
             self.weather_provider = self._demo
+            self.openmeteo_aq = None
         else:
             self.aq_provider = _shared_cpcb(api_key=settings.CPCB_API_KEY)
             self.weather_provider = _shared_imd()
+            self.openmeteo_aq = _shared_openmeteo_aq()
             self._demo = None
 
     def _build_observation(self, station: Station, merged: Dict) -> Dict:
@@ -101,15 +112,33 @@ class IngestionService:
                     aq_data = None
 
                 if not aq_data or aq_data.get("pm25") is None:
-                    if self._demo is None:
-                        self._demo = DemoDataProvider()
-                    demo_fallback = await self._demo.fetch_current(station.id, station.latitude, station.longitude)
-                    if not aq_data:
-                        aq_data = demo_fallback
-                    else:
-                        for k, v in demo_fallback.items():
-                            if aq_data.get(k) is None:
-                                aq_data[k] = v
+                    # In LIVE mode, attempt real-time Open-Meteo Air Quality telemetry first
+                    if self.settings.APP_MODE == "LIVE" and self.openmeteo_aq:
+                        try:
+                            live_aq = await self.openmeteo_aq.fetch_current(
+                                station.id, station.latitude, station.longitude
+                            )
+                            if live_aq:
+                                if not aq_data:
+                                    aq_data = live_aq
+                                else:
+                                    for k, v in live_aq.items():
+                                        if aq_data.get(k) is None:
+                                            aq_data[k] = v
+                        except Exception:
+                            pass
+
+                    # Only if still missing PM2.5, fall back to calibrated baseline
+                    if not aq_data or aq_data.get("pm25") is None:
+                        if self._demo is None:
+                            self._demo = DemoDataProvider()
+                        demo_fallback = await self._demo.fetch_current(station.id, station.latitude, station.longitude)
+                        if not aq_data:
+                            aq_data = demo_fallback
+                        else:
+                            for k, v in demo_fallback.items():
+                                if aq_data.get(k) is None:
+                                    aq_data[k] = v
 
                 if self.settings.APP_MODE == "DEMO" or not aq_data:
                     merged = aq_data or {}

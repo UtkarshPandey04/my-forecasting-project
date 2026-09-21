@@ -15,6 +15,7 @@ import {
   ForecastExplanation,
   BlendedForecastResponse
 } from '@/lib/types';
+import { calculateAqiFromPm25 } from '@/lib/naqi';
 
 import WorkbenchHeader from '@/components/workbench/WorkbenchHeader';
 import WorkbenchSidebar, { WorkbenchView } from '@/components/workbench/WorkbenchSidebar';
@@ -89,24 +90,24 @@ export default function WorkbenchPage() {
       const pm25 = obs.pollutants?.pm25;
       const aqi = obs.aqi;
       if (pm25 === null || pm25 === undefined || aqi === null || aqi === undefined) {
-        const basePm = 168.4;
-        const variance = ((i * 7) % 55) - 25;
-        const fallbackPm = Math.max(45, Math.round((basePm + variance) * 10) / 10);
-        const fallbackAqi = Math.round(fallbackPm * 1.45);
+        const basePm = 55.0;
+        const variance = ((i * 7) % 25) - 12;
+        const fallbackPm = Math.max(28, Math.round((basePm + variance) * 10) / 10);
+        const { aqi: fallbackAqi, category: fallbackCat, color: fallbackCol } = calculateAqiFromPm25(fallbackPm);
         obs = {
           ...obs,
           aqi: aqi ?? fallbackAqi,
-          aqi_category: obs.aqi_category ?? (fallbackAqi > 300 ? 'Very Poor' : fallbackAqi > 200 ? 'Poor' : 'Moderate'),
-          aqi_color: obs.aqi_color ?? (fallbackAqi > 300 ? '#ef4444' : fallbackAqi > 200 ? '#f97316' : '#eab308'),
+          aqi_category: obs.aqi_category ?? fallbackCat,
+          aqi_color: obs.aqi_color ?? fallbackCol,
           pollutants: {
             ...obs.pollutants,
             pm25: pm25 ?? fallbackPm,
-            pm10: obs.pollutants?.pm10 ?? Math.round(fallbackPm * 1.85),
-            no2: obs.pollutants?.no2 ?? Math.round(35 + (i % 25)),
-            so2: obs.pollutants?.so2 ?? 14.2,
-            co: obs.pollutants?.co ?? 1.1,
-            o3: obs.pollutants?.o3 ?? 28.6,
-            nh3: obs.pollutants?.nh3 ?? 18.5
+            pm10: obs.pollutants?.pm10 ?? Math.round(fallbackPm * 1.7),
+            no2: obs.pollutants?.no2 ?? Math.round(24 + (i % 15)),
+            so2: obs.pollutants?.so2 ?? 12.4,
+            co: obs.pollutants?.co ?? 0.8,
+            o3: obs.pollutants?.o3 ?? 24.6,
+            nh3: obs.pollutants?.nh3 ?? 14.5
           }
         };
       }
@@ -131,7 +132,7 @@ export default function WorkbenchPage() {
         api.getStations(),
         api.getHealth().catch(() => null),
         api.getAtmosphericRegime().catch(() => null),
-        api.getDerivedIndices().catch(() => null),
+        api.getDerivedIndices('anand_vihar').catch(() => null),
         api.getActiveFires().catch(() => null),
         api.getTransportCorridors().catch(() => null),
       ]);
@@ -161,14 +162,16 @@ export default function WorkbenchPage() {
   const loadStationData = async (stationId: string) => {
     try {
       setLoadingForecast(true);
-      const [fcRes, blendRes, expRes] = await Promise.all([
+      const [fcRes, blendRes, expRes, indRes] = await Promise.all([
         api.getForecast(stationId).catch(() => null),
         api.getBlendedForecast(stationId).catch(() => null),
         api.getForecastExplanation(stationId).catch(() => null),
+        api.getDerivedIndices(stationId).catch(() => null),
       ]);
       setForecast(fcRes);
       setBlendedForecast(blendRes);
       setExplanation(expRes);
+      if (indRes) setIndices(indRes);
     } catch (err) {
       console.error('Failed to fetch station forecast:', err);
     } finally {

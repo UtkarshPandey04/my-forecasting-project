@@ -83,8 +83,8 @@ class IMDWeatherProvider(WeatherDataProvider):
         }
 
     async def fetch_current(self, lat: float, lon: float) -> Optional[Dict]:
-        grid_lat = round(round(lat / 0.2) * 0.2, 2)
-        grid_lon = round(round(lon / 0.2) * 0.2, 2)
+        grid_lat = round(lat, 2)
+        grid_lon = round(lon, 2)
         cache_key = (grid_lat, grid_lon)
         cached = _weather_cache.get(cache_key)
         if cached and datetime.now() < cached[0]:

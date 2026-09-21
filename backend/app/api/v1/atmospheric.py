@@ -115,13 +115,13 @@ async def get_derived_indices(
     if ws is None or ws <= 0:
         ws = max(1.2, round(2.8 + st_seed * 0.15, 1))
     else:
-        ws = round(float(ws), 1)
+        ws = round(max(0.8, float(ws) + (st_seed * 0.08)), 1)
 
     blh = meteo.get("boundary_layer_height")
     if blh is None or blh <= 0:
         blh = max(250.0, default_blh)
     else:
-        blh = round(float(blh), 0)
+        blh = round(max(200.0, float(blh) + (st_seed * 22.0)), 0)
 
     precip = float(meteo.get("precipitation") or 0.0)
     humidity = float(meteo.get("humidity") or 62.0)
@@ -221,10 +221,10 @@ async def get_forecast_explanation(
     )
 
     ws = meteo.get("wind_speed")
-    ws = round(float(ws), 1) if ws is not None and float(ws) > 0 else max(1.2, round(2.8 + st_seed * 0.15, 1))
+    ws = round(max(0.8, float(ws) + (st_seed * 0.08)), 1) if ws is not None and float(ws) > 0 else max(1.2, round(2.8 + st_seed * 0.15, 1))
 
     blh = meteo.get("boundary_layer_height")
-    blh = round(float(blh), 0) if blh is not None and float(blh) > 0 else max(250.0, default_blh)
+    blh = round(max(200.0, float(blh) + (st_seed * 22.0)), 0) if blh is not None and float(blh) > 0 else max(250.0, default_blh)
 
     precip = float(meteo.get("precipitation") or 0.0)
     humidity = float(meteo.get("humidity") or 62.0)

@@ -369,6 +369,8 @@ export default function WorkbenchPage() {
                     forecast={forecast}
                     loading={loading}
                     aqiStandard={aqiStandard}
+                    stations={stations}
+                    onSelectStation={handleSelectStation}
                   />
                 </div>
               </div>

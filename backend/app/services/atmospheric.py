@@ -327,28 +327,38 @@ def explain_forecast_drivers(
     wd = meteo.get("wind_direction", 290.0)
     fire_count = len(fires)
 
-    drivers = []
+    # Calculate continuous dynamic weightings based on atmospheric indices and micro-meteorology
+    blh_score = max(10.0, min(45.0, 45.0 - (blh / 45.0) + (irs * 0.2)))
+    wind_score = max(10.0, min(40.0, (si * 0.3) + max(0.0, 18.0 - ws * 3.5)))
+    fire_score = max(5.0, min(45.0, (wti * 0.35) + min(18.0, fire_count * 2.5)))
+    urban_score = 22.0
+
+    total_score = blh_score + wind_score + fire_score + urban_score
+    pct_blh = round((blh_score / total_score) * 100.0)
+    pct_wind = round((wind_score / total_score) * 100.0)
+    pct_fire = round((fire_score / total_score) * 100.0)
+    pct_urban = max(5, 100 - (pct_blh + pct_wind + pct_fire))
 
     # 1. Boundary Layer Dynamic
     if blh < 350.0:
         drivers.append({
             "factor": "Boundary Layer Compression",
             "impact": "trapping",
-            "contribution_pct": 35.0,
+            "contribution_pct": float(pct_blh),
             "description": f"Extremely shallow mixing height of {blh:.0f} m severely restricts vertical volume, trapping all surface exhaust."
         })
     elif blh > 1200.0:
         drivers.append({
             "factor": "Boundary Layer Expansion",
             "impact": "clearing",
-            "contribution_pct": 30.0,
+            "contribution_pct": float(pct_blh),
             "description": f"Deep convective mixing layer of {blh:.0f} m provides high volumetric dilution capacity."
         })
     else:
         drivers.append({
             "factor": "Diurnal Mixing Height",
             "impact": "trapping" if blh < 600 else "clearing",
-            "contribution_pct": 20.0,
+            "contribution_pct": float(pct_blh),
             "description": f"Moderate mixing height of {blh:.0f} m following normal solar thermal progression."
         })
 
@@ -357,37 +367,37 @@ def explain_forecast_drivers(
         drivers.append({
             "factor": "Calm Surface Winds",
             "impact": "trapping",
-            "contribution_pct": 30.0,
+            "contribution_pct": float(pct_wind),
             "description": f"Calm wind speed of {ws:.1f} m/s fails to generate horizontal advection, causing localized vehicular smog stagnation."
         })
     elif ws > 4.5:
         drivers.append({
             "factor": "Brisk Advection Winds",
             "impact": "clearing",
-            "contribution_pct": 30.0,
+            "contribution_pct": float(pct_wind),
             "description": f"Active surface winds ({ws:.1f} m/s) promote horizontal advection and urban plume displacement."
         })
     else:
         drivers.append({
             "factor": "Moderate Surface Winds",
             "impact": "trapping" if ws < 3.0 else "clearing",
-            "contribution_pct": 20.0,
+            "contribution_pct": float(pct_wind),
             "description": f"Surface wind speed of {ws:.1f} m/s maintains baseline dispersion."
         })
 
     # 3. Regional Biomass Advection
-    if wti >= 40.0 and fire_count >= 5:
+    if wti >= 35.0 and fire_count >= 3:
         drivers.append({
             "factor": "Upstream Fire Advection",
             "impact": "advection",
-            "contribution_pct": 25.0,
+            "contribution_pct": float(pct_fire),
             "description": f"Prevailing winds ({wd:.0f}°) align with {fire_count} active agricultural fire clusters in Punjab/Haryana."
         })
     elif fire_count > 0:
         drivers.append({
             "factor": "Regional Fire Activity",
             "impact": "advection",
-            "contribution_pct": 10.0,
+            "contribution_pct": float(pct_fire),
             "description": f"{fire_count} active fires detected regionally, with partial wind corridor alignment."
         })
 
@@ -395,7 +405,7 @@ def explain_forecast_drivers(
     drivers.append({
         "factor": "Local Urban Emissions",
         "impact": "emission",
-        "contribution_pct": 15.0,
+        "contribution_pct": float(pct_urban),
         "description": "Continuous baseline urban background from transport, construction dust, and commercial energy consumption."
     })
 

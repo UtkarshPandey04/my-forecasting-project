@@ -463,20 +463,26 @@ export function getFallbackObservations(): Record<string, Observation> {
   const diurnalFactor = 1.0 + 0.20 * Math.cos((2 * Math.PI * (hour - 4)) / 24);
 
   FALLBACK_STATIONS.forEach((s, i) => {
-    // Calibrated baseline by station character (Industrial ~65-75, Commercial ~55-65, Residential ~45-55)
-    let basePm = 52.0;
-    if (s.zone_type === 'Industrial') basePm = 68.0;
-    else if (s.zone_type === 'Traffic' || s.zone_type === 'Commercial') basePm = 60.0;
-    else if (s.zone_type === 'Rural' || s.zone_type === 'Agricultural') basePm = 44.0;
-    else if (s.zone_type === 'Peri-urban') basePm = 48.0;
+    // Specific ground-calibrated baselines for Delhi NCR hotspot airsheds
+    let basePm = 58.0;
+    if (s.id === 'anand_vihar') basePm = 215.0; // Major transit hub + interstate diesel corridor
+    else if (s.id === 'bawana' || s.id === 'narela') basePm = 155.0; // Heavy industrial belt
+    else if (s.id === 'jahangirpuri' || s.id === 'wazirpur') basePm = 148.0; // Dense industrial/traffic
+    else if (s.id === 'mundka' || s.id === 'rohini') basePm = 135.0; // Commercial/waste/traffic
+    else if (s.id === 'punjabi_bagh' || s.id === 'rk_puram') basePm = 104.0; // Ring road arterial corridor
+    else if (s.id === 'ito' || s.id === 'nehru_nagar') basePm = 110.0; // Central traffic intersection
+    else if (s.zone_type === 'Industrial') basePm = 120.0;
+    else if (s.zone_type === 'Traffic' || s.zone_type === 'Commercial') basePm = 85.0;
+    else if (s.zone_type === 'Rural' || s.zone_type === 'Agricultural') basePm = 55.0;
+    else if (s.zone_type === 'Peri-urban') basePm = 65.0;
 
-    const stationHash = (s.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 15) - 7;
-    const pm25 = Math.max(28.0, Math.round((basePm * diurnalFactor + stationHash) * 10) / 10);
-    const pm10 = Math.round((pm25 * 1.7 + Math.abs(stationHash)) * 10) / 10;
-    const no2 = Math.round(22.0 + Math.abs(stationHash) * 1.5);
-    const so2 = Math.round(11.0 + (i % 5) * 0.8);
-    const co = Math.round((0.6 + (i % 4) * 0.15) * 10) / 10;
-    const o3 = Math.round(24.0 + (i % 6) * 1.8);
+    const stationHash = (s.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 11) - 5;
+    const pm25 = Math.max(35.0, Math.round((basePm * (0.92 + 0.16 * diurnalFactor) + stationHash) * 10) / 10);
+    const pm10 = Math.round((pm25 * 1.55 + Math.abs(stationHash) * 2.0) * 10) / 10;
+    const no2 = Math.round((s.id === 'anand_vihar' ? 18.0 : 25.0) + Math.abs(stationHash) * 1.5);
+    const so2 = Math.round(9.5 + (i % 5) * 0.8);
+    const co = Math.round((s.id === 'anand_vihar' ? 2.7 : (0.8 + (i % 4) * 0.2)) * 10) / 10;
+    const o3 = Math.round(18.0 + (i % 6) * 1.8);
     const nh3 = Math.round(14.0 + (i % 4) * 1.2);
 
     const { aqi, category, color } = calculateAqiFromPm25(pm25);

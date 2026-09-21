@@ -10,12 +10,16 @@ from app.providers.demo import DemoDataProvider
 from app.providers.cpcb import CPCBProvider
 from app.providers.imd import IMDWeatherProvider
 from app.providers.openmeteo_aq import OpenMeteoAQProvider
+from app.providers.dpcc import DPCCProvider
+from app.providers.waqi import WAQIProvider
 from app.models.station import Station
 from app.services.aqi import calculate_naqi
 
 _cpcb_provider: Optional[CPCBProvider] = None
 _imd_provider: Optional[IMDWeatherProvider] = None
 _openmeteo_aq_provider: Optional[OpenMeteoAQProvider] = None
+_dpcc_provider: Optional[DPCCProvider] = None
+_waqi_provider: Optional[WAQIProvider] = None
 
 
 def _shared_cpcb(api_key: str) -> CPCBProvider:
@@ -39,6 +43,20 @@ def _shared_openmeteo_aq() -> OpenMeteoAQProvider:
     return _openmeteo_aq_provider
 
 
+def _shared_dpcc() -> DPCCProvider:
+    global _dpcc_provider
+    if _dpcc_provider is None:
+        _dpcc_provider = DPCCProvider()
+    return _dpcc_provider
+
+
+def _shared_waqi(token: str) -> WAQIProvider:
+    global _waqi_provider
+    if _waqi_provider is None:
+        _waqi_provider = WAQIProvider(api_token=token)
+    return _waqi_provider
+
+
 class IngestionService:
     def __init__(self, db: Session, settings: Settings):
         self.db = db
@@ -48,10 +66,14 @@ class IngestionService:
             self.aq_provider = self._demo
             self.weather_provider = self._demo
             self.openmeteo_aq = None
+            self.dpcc_provider = None
+            self.waqi_provider = None
         else:
             self.aq_provider = _shared_cpcb(api_key=settings.CPCB_API_KEY)
             self.weather_provider = _shared_imd()
             self.openmeteo_aq = _shared_openmeteo_aq()
+            self.dpcc_provider = _shared_dpcc()
+            self.waqi_provider = _shared_waqi(getattr(settings, "WAQI_API_TOKEN", "demo"))
             self._demo = None
 
     def _build_observation(self, station: Station, merged: Dict) -> Dict:
@@ -102,43 +124,78 @@ class IngestionService:
 
         async def load_station(station: Station) -> Optional[Dict]:
             async with semaphore:
-                aq_lookup = station.name if self.settings.APP_MODE == "LIVE" else station.id
                 aq_data = None
-                try:
-                    aq_data = await self.aq_provider.fetch_current(
-                        aq_lookup, station.latitude, station.longitude
-                    )
-                except Exception:
-                    aq_data = None
 
-                if not aq_data or aq_data.get("pm25") is None:
-                    # In LIVE mode, attempt real-time Open-Meteo Air Quality telemetry first
-                    if self.settings.APP_MODE == "LIVE" and self.openmeteo_aq:
+                if self.settings.APP_MODE == "LIVE":
+                    # 1. Primary Source: Direct DPCC CAAQMS live ground station monitor (continuous 5-minute telemetry)
+                    if self.dpcc_provider:
                         try:
-                            live_aq = await self.openmeteo_aq.fetch_current(
+                            dpcc_data = await self.dpcc_provider.fetch_current(
                                 station.id, station.latitude, station.longitude
                             )
-                            if live_aq:
-                                if not aq_data:
-                                    aq_data = live_aq
-                                else:
-                                    for k, v in live_aq.items():
-                                        if aq_data.get(k) is None:
-                                            aq_data[k] = v
+                            if dpcc_data and dpcc_data.get("pm25") is not None:
+                                aq_data = dpcc_data
                         except Exception:
                             pass
 
-                    # Only if still missing PM2.5, fall back to calibrated baseline
+                    # 2. Secondary Source: CPCB CAAQMS official portal
                     if not aq_data or aq_data.get("pm25") is None:
-                        if self._demo is None:
-                            self._demo = DemoDataProvider()
-                        demo_fallback = await self._demo.fetch_current(station.id, station.latitude, station.longitude)
-                        if not aq_data:
-                            aq_data = demo_fallback
-                        else:
-                            for k, v in demo_fallback.items():
-                                if aq_data.get(k) is None:
-                                    aq_data[k] = v
+                        try:
+                            cpcb_data = await self.aq_provider.fetch_current(
+                                station.name, station.latitude, station.longitude
+                            )
+                            if cpcb_data and cpcb_data.get("pm25") is not None:
+                                aq_data = cpcb_data
+                        except Exception:
+                            pass
+
+                    # 3. Tertiary Source: WAQI Live Ground Network
+                    if not aq_data or aq_data.get("pm25") is None:
+                        if self.waqi_provider:
+                            try:
+                                waqi_data = await self.waqi_provider.fetch_current(
+                                    station.id, station.latitude, station.longitude
+                                )
+                                if waqi_data and waqi_data.get("pm25") is not None:
+                                    aq_data = waqi_data
+                            except Exception:
+                                pass
+
+                    # 4. Quaternary Source: Open-Meteo Air Quality / CAMS model
+                    if not aq_data or aq_data.get("pm25") is None:
+                        if self.openmeteo_aq:
+                            try:
+                                live_aq = await self.openmeteo_aq.fetch_current(
+                                    station.id, station.latitude, station.longitude
+                                )
+                                if live_aq:
+                                    if not aq_data:
+                                        aq_data = live_aq
+                                    else:
+                                        for k, v in live_aq.items():
+                                            if aq_data.get(k) is None:
+                                                aq_data[k] = v
+                            except Exception:
+                                pass
+                else:
+                    try:
+                        aq_data = await self.aq_provider.fetch_current(
+                            station.id, station.latitude, station.longitude
+                        )
+                    except Exception:
+                        aq_data = None
+
+                # Fallback to calibrated baseline if still missing PM2.5
+                if not aq_data or aq_data.get("pm25") is None:
+                    if self._demo is None:
+                        self._demo = DemoDataProvider()
+                    demo_fallback = await self._demo.fetch_current(station.id, station.latitude, station.longitude)
+                    if not aq_data:
+                        aq_data = demo_fallback
+                    else:
+                        for k, v in demo_fallback.items():
+                            if aq_data.get(k) is None:
+                                aq_data[k] = v
 
                 if self.settings.APP_MODE == "DEMO" or not aq_data:
                     merged = aq_data or {}

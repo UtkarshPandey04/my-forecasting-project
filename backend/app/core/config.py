@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     APP_MODE: Literal["LIVE", "DEMO"] = "DEMO"
     DATABASE_URL: str = "sqlite:///./data/aerosense.db"
     CPCB_API_KEY: str = ""
+    WAQI_API_TOKEN: str = "demo"
     FIRMS_MAP_KEY: str = ""
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""

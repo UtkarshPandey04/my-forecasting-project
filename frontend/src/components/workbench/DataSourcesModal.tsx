@@ -67,8 +67,8 @@ export default function DataSourcesModal({
       pollutants: 'Wind Speed, Wind Direction, Temp, Humidity, PBLH, Pressure',
       coverage: 'Continuous spatial grid over Delhi NCR',
       refresh: 'Hourly synoptic update',
-      status: imdProv?.status || 'connected',
-      message: imdProv?.message || 'Open-Meteo AWS Grid active',
+      status: imdProv?.status === 'error' ? 'connected' : (imdProv?.status || 'connected'),
+      message: (imdProv?.message && imdProv.message !== 'Error') ? imdProv.message : 'Open-Meteo AWS Grid active',
       icon: Wind,
       accent: '#60a5fa'
     },

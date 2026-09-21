@@ -420,7 +420,7 @@ export default function WorkbenchPage() {
                     Boundary Layer Dynamics & Trapping Regime
                   </h3>
                   <AtmosphericRegimeCard regime={regime} loading={loading} />
-                  <DerivedIndicesGrid indices={indices} loading={loading} />
+                  <DerivedIndicesGrid indices={indices} loading={loading} aqiStandard={aqiStandard} />
                 </div>
               </div>
             </div>

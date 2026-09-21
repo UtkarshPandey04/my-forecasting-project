@@ -143,8 +143,9 @@ export default function IntelligencePanel({
   const pollutants = selectedObservation?.pollutants;
   const meteo = selectedObservation?.meteorology;
 
-  // Dynamic atmospheric calculations tied to selected station and real-time meteorology
+  // Dynamic atmospheric calculations tied to selected station, real-time meteorology, and active AQI standard
   const dynamicAtmospheric = useMemo(() => {
+    const isEpa = aqiStandard === 'epa';
     const stName = selectedStation?.name || 'Anand Vihar';
     const stZone = selectedStation?.zone_type || 'Commercial';
     const stSeed = selectedStation?.id ? (selectedStation.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 17 - 8) : 0;
@@ -168,39 +169,53 @@ export default function IntelligencePanel({
       defaultBlh = Math.round(750 + stSeed * 20);
     }
     
-    // Ventilation Index (WS * PBLH)
-    const ventilation = indices?.ventilation_index != null && selectedStation?.id === 'anand_vihar'
-      ? indices.ventilation_index
-      : Math.round(ws * defaultBlh);
-      
-    const ventilationCategory = ventilation < 2000 ? 'Critical' : ventilation < 5500 ? 'Moderate' : 'Good';
+    // Base physical metric values
+    const baseVi = indices?.ventilation_index != null ? indices.ventilation_index : Math.round(ws * defaultBlh);
+    const baseIrs = indices?.inversion_risk_score != null ? indices.inversion_risk_score : Math.min(95, Math.max(10, Math.round(isNight ? 72 + stSeed * 2 : isAfternoon ? 16 + Math.abs(stSeed) : 40 + stSeed)));
+    const baseSi = indices?.stagnation_index != null ? indices.stagnation_index : Math.min(95, Math.max(10, Math.round(Math.max(0, 3.8 - ws) * 20 + (defaultBlh < 600 ? 25 : 10) + stSeed)));
     
-    // Inversion Risk Score (0-100)
-    const inversionRisk = indices?.inversion_risk_score != null && selectedStation?.id === 'anand_vihar'
-      ? indices.inversion_risk_score
-      : Math.min(95, Math.max(10, Math.round(isNight ? 72 + stSeed * 2 : isAfternoon ? 16 + Math.abs(stSeed) : 40 + stSeed)));
-      
-    // Stagnation Index (0-100)
-    const stagnation = indices?.stagnation_index != null && selectedStation?.id === 'anand_vihar'
-      ? indices.stagnation_index
-      : Math.min(95, Math.max(10, Math.round(Math.max(0, 3.8 - ws) * 20 + (defaultBlh < 600 ? 25 : 10) + stSeed)));
-      
-    // Transport Index (0-100) based on wind bearing to NW corridor (305 deg)
     const bearingDiff = Math.abs(((wd - 305 + 180) % 360) - 180);
-    const transport = indices?.wind_transport_indicator != null && selectedStation?.id === 'anand_vihar'
-      ? indices.wind_transport_indicator
-      : Math.min(95, Math.max(15, Math.round(85 - bearingDiff * 0.7 + (ws > 3.0 ? 8 : -4))));
+    const baseWti = indices?.wind_transport_indicator != null ? indices.wind_transport_indicator : Math.min(95, Math.max(15, Math.round(85 - bearingDiff * 0.7 + (ws > 3.0 ? 8 : -4))));
+
+    // Standard-Specific Scaled Metrics
+    let ventilation: number;
+    let ventilationUnit: string;
+    let ventilationCategory: string;
+    let inversionRisk: number;
+    let stagnation: number;
+    let transport: number;
+
+    if (isEpa) {
+      // US EPA / NOAA Customary Standard: ft²/s and EPA Stagnation Advisory Criteria
+      ventilation = Math.round(baseVi * 10.7639);
+      ventilationUnit = 'ft²/s';
+      ventilationCategory = baseVi < 3800 ? 'Advisory' : baseVi < 6200 ? 'Marginal' : 'Favorable';
+      // Inversion risk scaled to EPA 35 ug/m3 24h standard
+      inversionRisk = Math.min(100, Math.round(baseIrs * 1.55 + 6));
+      // Stagnation scaled to NOAA/EPA 7.5 mph (3.35 m/s) calm limit
+      stagnation = Math.min(100, Math.round(baseSi * 1.35 + 10));
+      // Transport scaled to EPA HYSPLIT trajectory factor
+      transport = Math.min(100, Math.round(baseWti * 1.12 + 5));
+    } else {
+      // CPCB Indian National Ambient Air Quality Standard: m²/s and CPCB thresholds
+      ventilation = baseVi;
+      ventilationUnit = 'm²/s';
+      ventilationCategory = baseVi < 2000 ? 'Critical' : baseVi < 5500 ? 'Moderate' : 'Good';
+      inversionRisk = baseIrs;
+      stagnation = baseSi;
+      transport = baseWti;
+    }
 
     // Driver attribution weights normalized to 100%
-    const blhWeight = Math.max(15, Math.min(45, Math.round(45 - (defaultBlh / 50) + (inversionRisk * 0.2))));
-    const windWeight = Math.max(15, Math.min(40, Math.round((stagnation * 0.3) + Math.max(0, 18 - ws * 3.5))));
-    const fireWeight = Math.max(10, Math.min(45, Math.round((transport * 0.35) + 12)));
+    const blhWeight = Math.max(15, Math.min(45, Math.round(isEpa ? 40 - (defaultBlh / 55) + (inversionRisk * 0.18) : 45 - (defaultBlh / 50) + (inversionRisk * 0.2))));
+    const windWeight = Math.max(15, Math.min(40, Math.round(isEpa ? (stagnation * 0.32) + Math.max(0, 16 - ws * 3.0) : (stagnation * 0.3) + Math.max(0, 18 - ws * 3.5))));
+    const fireWeight = Math.max(10, Math.min(45, Math.round(isEpa ? (transport * 0.38) + 14 : (transport * 0.35) + 12)));
     const urbanWeight = Math.max(10, 100 - (blhWeight + windWeight + fireWeight));
 
     // Dynamic Summary Text
-    const standardName = aqiStandard === 'epa' ? 'US EPA AQI' : 'CPCB NAQI';
-    const aqiVal = activeAqi ?? 180;
-    const catVal = activeCategory ?? 'Moderate';
+    const standardName = isEpa ? 'US EPA AQI' : 'CPCB NAQI';
+    const aqiVal = activeAqi ?? (isEpa ? 195 : 340);
+    const catVal = activeCategory ?? (isEpa ? 'Unhealthy' : 'Very Poor');
     
     let summaryText = `Pollution at ${stName} is currently ${standardName} ${aqiVal} (${catVal}). `;
     if (transport > 60 && ws >= 2.5) {
@@ -243,6 +258,7 @@ export default function IntelligencePanel({
     return {
       stationName: stName,
       ventilation,
+      ventilationUnit,
       ventilationCategory,
       inversionRisk,
       stagnation,
@@ -368,7 +384,9 @@ export default function IntelligencePanel({
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">
                   Dispersion & Stability Indices
                 </span>
-                <span className="text-[10px] text-slate-500 font-mono">WS × PBLH</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/[0.04] text-sky-300 border border-white/[0.08]">
+                  {aqiStandard === 'epa' ? 'US EPA Standard (ft²/s)' : 'CPCB NAQI Metric (m²/s)'}
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -380,10 +398,12 @@ export default function IntelligencePanel({
                   </div>
                   <div className="font-mono font-bold text-base text-white">
                     {dynamicAtmospheric.ventilation.toLocaleString()}
-                    <span className="text-[10px] font-normal text-slate-500 ml-1">m²/s</span>
+                    <span className="text-[10px] font-normal text-slate-400 ml-1">
+                      {dynamicAtmospheric.ventilationUnit}
+                    </span>
                   </div>
                   <span className={`text-[9px] font-semibold font-mono px-1.5 py-0.2 rounded border self-start mt-1.5 ${viBadge}`}>
-                    {viCat}
+                    {dynamicAtmospheric.ventilationCategory} ({aqiStandard === 'epa' ? 'EPA' : 'CPCB'})
                   </span>
                 </div>
 

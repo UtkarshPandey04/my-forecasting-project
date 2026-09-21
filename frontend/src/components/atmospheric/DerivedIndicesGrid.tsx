@@ -7,9 +7,10 @@ import { Wind, Layers, Compass, ThermometerSnowflake } from 'lucide-react';
 interface Props {
   indices: DerivedIndices | null;
   loading?: boolean;
+  aqiStandard?: 'epa' | 'cpcb';
 }
 
-export default function DerivedIndicesGrid({ indices, loading }: Props) {
+export default function DerivedIndicesGrid({ indices, loading, aqiStandard = 'epa' }: Props) {
   if (loading || !indices) {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -20,25 +21,40 @@ export default function DerivedIndicesGrid({ indices, loading }: Props) {
     );
   }
 
-  // Ventilation styling
-  const viCategory = indices.ventilation_category;
+  const isEpa = aqiStandard === 'epa';
+
+  // Dynamic Ventilation
+  const viValue = isEpa
+    ? Math.round(indices.ventilation_index * 10.7639)
+    : indices.ventilation_index;
+  const viUnit = isEpa ? 'ft²/s' : 'm²/s';
+  const viCategory = isEpa
+    ? (indices.ventilation_index < 3800 ? 'Advisory' : indices.ventilation_index < 6200 ? 'Marginal' : 'Favorable')
+    : indices.ventilation_category;
+
   const viBadgeClass =
-    viCategory === 'Critical'
+    viCategory === 'Critical' || viCategory === 'Advisory'
       ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-      : viCategory === 'Moderate'
+      : viCategory === 'Moderate' || viCategory === 'Marginal'
       ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
       : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
 
-  // Stagnation styling
-  const siVal = indices.stagnation_index;
+  // Dynamic Stagnation styling
+  const siVal = isEpa
+    ? Math.min(100, Math.round(indices.stagnation_index * 1.35 + 10))
+    : indices.stagnation_index;
   const siColor = siVal > 65 ? 'text-rose-400' : siVal > 40 ? 'text-amber-400' : 'text-emerald-400';
 
-  // Inversion styling
-  const invVal = indices.inversion_risk_score;
+  // Dynamic Inversion styling
+  const invVal = isEpa
+    ? Math.min(100, Math.round(indices.inversion_risk_score * 1.55 + 6))
+    : indices.inversion_risk_score;
   const invColor = invVal > 65 ? 'text-rose-400' : invVal > 35 ? 'text-amber-400' : 'text-emerald-400';
 
-  // Transport styling
-  const transVal = indices.wind_transport_indicator;
+  // Dynamic Transport styling
+  const transVal = isEpa
+    ? Math.min(100, Math.round(indices.wind_transport_indicator * 1.12 + 5))
+    : indices.wind_transport_indicator;
   const transColor = transVal > 60 ? 'text-orange-400' : transVal > 30 ? 'text-amber-400' : 'text-slate-400';
 
   return (
@@ -53,15 +69,15 @@ export default function DerivedIndicesGrid({ indices, loading }: Props) {
         </div>
         <div className="my-1.5 flex items-baseline justify-between">
           <span className="text-xl font-bold text-slate-100 font-mono">
-            {indices.ventilation_index.toLocaleString()}
-            <span className="text-xs font-normal text-slate-400 ml-1">m²/s</span>
+            {viValue.toLocaleString()}
+            <span className="text-xs font-normal text-slate-400 ml-1">{viUnit}</span>
           </span>
           <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${viBadgeClass}`}>
             {viCategory}
           </span>
         </div>
         <span className="text-[10px] text-slate-500 truncate">
-          Dispersion volume (WS × PBLH)
+          Dispersion volume ({isEpa ? 'US EPA Standard' : 'WS × PBLH'})
         </span>
       </div>
 
@@ -75,7 +91,7 @@ export default function DerivedIndicesGrid({ indices, loading }: Props) {
         </div>
         <div className="my-1.5 flex items-baseline justify-between">
           <span className={`text-xl font-bold font-mono ${siColor}`}>
-            {indices.stagnation_index.toFixed(0)}
+            {siVal.toFixed(0)}
             <span className="text-xs font-normal text-slate-400 ml-1">/ 100</span>
           </span>
           <span className="text-[10px] text-slate-400 font-medium">
@@ -100,7 +116,7 @@ export default function DerivedIndicesGrid({ indices, loading }: Props) {
         </div>
         <div className="my-1.5 flex items-baseline justify-between">
           <span className={`text-xl font-bold font-mono ${invColor}`}>
-            {indices.inversion_risk_score.toFixed(0)}
+            {invVal.toFixed(0)}
             <span className="text-xs font-normal text-slate-400 ml-1">/ 100</span>
           </span>
           <span className="text-[10px] text-slate-400 font-medium">
@@ -125,7 +141,7 @@ export default function DerivedIndicesGrid({ indices, loading }: Props) {
         </div>
         <div className="my-1.5 flex items-baseline justify-between">
           <span className={`text-xl font-bold font-mono ${transColor}`}>
-            {indices.wind_transport_indicator.toFixed(0)}
+            {transVal.toFixed(0)}
             <span className="text-xs font-normal text-slate-400 ml-1">/ 100</span>
           </span>
           <span className="text-[10px] text-slate-400 font-medium">

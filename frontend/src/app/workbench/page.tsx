@@ -76,6 +76,7 @@ export default function WorkbenchPage() {
   const [explanation, setExplanation] = useState<ForecastExplanation | null>(null);
 
   // UI State
+  const [aqiStandard, setAqiStandard] = useState<'epa' | 'cpcb'>('epa');
   const [stationDrawerOpen, setStationDrawerOpen] = useState<boolean>(false);
   const [askModalOpen, setAskModalOpen] = useState<boolean>(false);
   const [dataSourcesModalOpen, setDataSourcesModalOpen] = useState<boolean>(false);
@@ -232,6 +233,8 @@ export default function WorkbenchPage() {
         lastUpdated={lastUpdated}
         onOpenAskAgent={() => setAskModalOpen(true)}
         onOpenDataSources={() => setDataSourcesModalOpen(true)}
+        aqiStandard={aqiStandard}
+        onToggleAqiStandard={setAqiStandard}
       />
 
       {/* Main Body Layout: Sidebar + Content */}
@@ -252,7 +255,11 @@ export default function WorkbenchPage() {
 
         {/* View Router */}
         {currentView === 'what-if' ? (
-          <WorkbenchWhatIf stations={stations} selectedStationId={selectedStationId} />
+          <WorkbenchWhatIf
+            stations={stations}
+            selectedStationId={selectedStationId}
+            aqiStandard={aqiStandard}
+          />
         ) : currentView === 'incident-command' ? (
           <IncidentCommand
             activeFires={activeFires}
@@ -260,6 +267,7 @@ export default function WorkbenchPage() {
             stations={stations}
             selectedStationId={selectedStationId}
             onSelectStation={handleSelectStation}
+            aqiStandard={aqiStandard}
           />
         ) : currentView === 'response-console' ? (
           <ResponseConsole
@@ -269,6 +277,7 @@ export default function WorkbenchPage() {
             stations={stations}
             onSelectStation={handleSelectStation}
             onOpenWhatIf={() => setCurrentView('what-if')}
+            aqiStandard={aqiStandard}
           />
         ) : currentView === 'evaluation' ? (
           <WorkbenchEvaluation />
@@ -310,7 +319,12 @@ export default function WorkbenchPage() {
                 </select>
               </div>
             </div>
-            <ForecastTimeline forecast={forecast} blendedForecast={blendedForecast} loading={loadingForecast} />
+            <ForecastTimeline
+              forecast={forecast}
+              blendedForecast={blendedForecast}
+              loading={loadingForecast}
+              aqiStandard={aqiStandard}
+            />
             <ForecastExplainer explanation={explanation} loading={loadingForecast} />
           </div>
         ) : (
@@ -322,6 +336,8 @@ export default function WorkbenchPage() {
               <OverviewScreen
                 observation={selectedObservation}
                 stationName={selectedStation?.name || 'Delhi NCR Basin'}
+                aqiStandard={aqiStandard}
+                onToggleAqiStandard={setAqiStandard}
               />
 
               {/* Central Workspace: Large Map + 440px Atmospheric Intelligence Panel */}
@@ -337,6 +353,8 @@ export default function WorkbenchPage() {
                     windDirection={dominantWindDir}
                     windSpeedMs={windSpeed}
                     inversionRiskScore={indices?.inversion_risk_score ?? 45}
+                    aqiStandard={aqiStandard}
+                    onToggleAqiStandard={setAqiStandard}
                   />
                 </div>
 
@@ -350,6 +368,7 @@ export default function WorkbenchPage() {
                     selectedObservation={selectedObservation}
                     forecast={forecast}
                     loading={loading}
+                    aqiStandard={aqiStandard}
                   />
                 </div>
               </div>
@@ -381,6 +400,7 @@ export default function WorkbenchPage() {
                   forecast={forecast}
                   blendedForecast={blendedForecast}
                   loading={loadingForecast}
+                  aqiStandard={aqiStandard}
                   className="rounded-xl border border-white/[0.08] shadow-2xl h-[340px]"
                 />
               </div>

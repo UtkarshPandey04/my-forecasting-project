@@ -1,7 +1,6 @@
-'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ForecastResponse, BlendedForecastResponse } from '@/lib/types';
+import { calculateAqiFromPm25, calculateEpaAqiFromPm25 } from '@/lib/naqi';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -20,16 +19,35 @@ interface ForecastTimelineProps {
   blendedForecast: BlendedForecastResponse | null;
   loading?: boolean;
   className?: string;
+  aqiStandard?: 'epa' | 'cpcb';
 }
 
 export default function ForecastTimeline({
   forecast,
   blendedForecast,
   loading,
-  className = ''
+  className = '',
+  aqiStandard = 'epa'
 }: ForecastTimelineProps) {
   const [activeTab, setActiveTab] = useState<'pm25' | 'o3' | 'aqi'>('pm25');
   const [showUncertainty, setShowUncertainty] = useState(true);
+
+  // Use blended points if available, otherwise regular forecast points
+  const rawPoints = blendedForecast?.points || forecast?.points || [];
+
+  const chartPoints = useMemo(() => {
+    return rawPoints.map((p: any) => {
+      const pm25 = p.blended_pm25 ?? p.pm25_predicted ?? 60.0;
+      const epa = calculateEpaAqiFromPm25(pm25);
+      const cpcb = calculateAqiFromPm25(pm25);
+      return {
+        ...p,
+        epa_aqi: epa.aqi,
+        cpcb_aqi: cpcb.aqi,
+        active_aqi: aqiStandard === 'epa' ? epa.aqi : cpcb.aqi
+      };
+    });
+  }, [rawPoints, aqiStandard]);
 
   if (loading) {
     return (
@@ -39,10 +57,7 @@ export default function ForecastTimeline({
     );
   }
 
-  // Use blended points if available, otherwise regular forecast points
-  const points = blendedForecast?.points || forecast?.points || [];
-
-  if (points.length === 0) {
+  if (chartPoints.length === 0) {
     return (
       <div className={`bg-[#0c111a] border border-white/[0.08] p-6 flex items-center justify-center text-xs text-slate-500 font-mono shrink-0 ${className || 'h-[320px]'}`}>
         Select a monitoring station to view 72-hour forecast timeline
@@ -97,7 +112,7 @@ export default function ForecastTimeline({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Indian NAQI
+              {aqiStandard === 'epa' ? 'US EPA (aqicn)' : 'CPCB NAQI'}
             </button>
           </div>
         </div>
@@ -116,7 +131,7 @@ export default function ForecastTimeline({
             <span>Uncertainty Ribbon (10-90%)</span>
           </button>
           <span className="text-slate-500">
-            Model: {blendedForecast ? 'WRF-Chem + Residual Blended' : forecast?.model_version}
+            Scale: {aqiStandard === 'epa' ? 'US EPA (aqicn.org)' : 'CPCB NAQI (India)'} | Model: {blendedForecast ? 'WRF-Chem + Blended' : forecast?.model_version}
           </span>
         </div>
       </div>
@@ -124,7 +139,7 @@ export default function ForecastTimeline({
       {/* Trajectory Chart */}
       <div className="flex-1 min-h-[200px] w-full pt-1">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={points as any[]} margin={{ top: 5, right: 15, left: -20, bottom: 0 }}>
+          <ComposedChart data={chartPoints} margin={{ top: 5, right: 15, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} vertical={false} />
             <XAxis
               dataKey="hour_offset"
@@ -137,9 +152,9 @@ export default function ForecastTimeline({
             <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
             <Tooltip
               contentStyle={{ backgroundColor: '#070b12', borderColor: '#334155', borderRadius: '6px', fontSize: '11px' }}
-              formatter={(val: any, name: any) => [
-                `${typeof val === 'number' ? val.toFixed(1) : val} ${activeTab === 'aqi' ? 'NAQI' : 'µg/m³'}`,
-                activeTab.toUpperCase()
+              formatter={(val: any) => [
+                `${typeof val === 'number' ? Math.round(val) : val} ${activeTab === 'aqi' ? (aqiStandard === 'epa' ? 'EPA AQI' : 'NAQI') : 'µg/m³'}`,
+                activeTab === 'aqi' ? (aqiStandard === 'epa' ? 'US EPA AQI' : 'CPCB NAQI') : activeTab.toUpperCase()
               ]}
               labelFormatter={(label) => `Forecast Horizon: +${label} Hours`}
             />
@@ -150,6 +165,25 @@ export default function ForecastTimeline({
                 <ReferenceLine y={60} stroke="#eab308" strokeDasharray="3 3" />
                 <ReferenceLine y={120} stroke="#f97316" strokeDasharray="3 3" />
                 <ReferenceLine y={250} stroke="#ef4444" strokeDasharray="3 3" />
+              </>
+            )}
+
+            {activeTab === 'aqi' && aqiStandard === 'epa' && (
+              <>
+                <ReferenceLine y={50} stroke="#22c55e" strokeDasharray="3 3" label={{ value: 'Good', fill: '#22c55e', fontSize: 9 }} />
+                <ReferenceLine y={100} stroke="#eab308" strokeDasharray="3 3" label={{ value: 'Mod', fill: '#eab308', fontSize: 9 }} />
+                <ReferenceLine y={150} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Sensitive', fill: '#f97316', fontSize: 9 }} />
+                <ReferenceLine y={200} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Unhealthy', fill: '#ef4444', fontSize: 9 }} />
+              </>
+            )}
+
+            {activeTab === 'aqi' && aqiStandard === 'cpcb' && (
+              <>
+                <ReferenceLine y={50} stroke="#22c55e" strokeDasharray="3 3" label={{ value: 'Good', fill: '#22c55e', fontSize: 9 }} />
+                <ReferenceLine y={100} stroke="#84cc16" strokeDasharray="3 3" label={{ value: 'Satisfactory', fill: '#84cc16', fontSize: 9 }} />
+                <ReferenceLine y={200} stroke="#eab308" strokeDasharray="3 3" label={{ value: 'Moderate', fill: '#eab308', fontSize: 9 }} />
+                <ReferenceLine y={300} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Poor', fill: '#f97316', fontSize: 9 }} />
+                <ReferenceLine y={400} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Very Poor', fill: '#ef4444', fontSize: 9 }} />
               </>
             )}
 
@@ -181,7 +215,7 @@ export default function ForecastTimeline({
                   ? (blendedForecast ? 'blended_pm25' : 'pm25_predicted')
                   : activeTab === 'o3'
                   ? 'physics_o3'
-                  : (blendedForecast ? 'aqi' : 'aqi_predicted')
+                  : 'active_aqi'
               }
               stroke="#38bdf8"
               strokeWidth={2}

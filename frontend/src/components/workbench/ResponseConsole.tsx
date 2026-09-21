@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { ForecastResponse, Observation, Station } from '@/lib/types';
 import { firstGrapTrigger, getGrapStage, GrapAssessment } from '@/lib/grap';
+import { calculateAqiFromPm25, calculateEpaAqiFromPm25 } from '@/lib/naqi';
 import { api } from '@/lib/api';
 
 interface ResponseConsoleProps {
@@ -41,6 +42,7 @@ interface ResponseConsoleProps {
   stations?: Station[];
   onSelectStation?: (stationId: string) => void;
   onOpenWhatIf?: () => void;
+  aqiStandard?: 'epa' | 'cpcb';
 }
 
 interface QueuedAction {
@@ -206,11 +208,25 @@ export default function ResponseConsole({
   stationId,
   stations,
   onSelectStation,
-  onOpenWhatIf
+  onOpenWhatIf,
+  aqiStandard = 'epa'
 }: ResponseConsoleProps) {
   // AQI and GRAP Protocol calculations
-  const currentAqi = observation?.aqi ?? 286;
-  const current = getGrapStage(currentAqi);
+  const pm25 = observation?.pollutants?.pm25 ?? 60.0;
+  const epaRes = calculateEpaAqiFromPm25(pm25);
+  const cpcbRes = calculateAqiFromPm25(pm25);
+
+  const activeAqi = aqiStandard === 'epa'
+    ? (observation?.epa_aqi ?? epaRes.aqi)
+    : (observation?.aqi ?? cpcbRes.aqi);
+
+  const activeCategory = aqiStandard === 'epa'
+    ? (observation?.epa_category ?? epaRes.category)
+    : (observation?.aqi_category ?? cpcbRes.category);
+
+  // CAQM GRAP is statutory under Indian NAQI:
+  const cpcbAqiForGrap = observation?.aqi ?? cpcbRes.aqi;
+  const current = getGrapStage(cpcbAqiForGrap);
   const trigger = forecast ? firstGrapTrigger(forecast.points) : null;
   const predicted = trigger?.assessment ?? current;
   const hours = trigger?.point.hour_offset ?? 14;
@@ -374,24 +390,65 @@ export default function ResponseConsole({
   }, [actionQueue, queueFilter]);
 
   // Human-friendly interpretation of AQI
-  const getHealthGuidance = (aqi: number) => {
-    if (aqi <= 100) {
+  const getHealthGuidance = (aqiVal: number, standard: 'epa' | 'cpcb') => {
+    if (standard === 'epa') {
+      if (aqiVal <= 50) {
+        return {
+          title: 'Good Air Quality (US EPA)',
+          desc: 'Air quality is satisfactory, and air pollution poses little or no risk.',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+          residentTip: 'Ideal conditions for outdoor exercises and natural ventilation.'
+        };
+      }
+      if (aqiVal <= 100) {
+        return {
+          title: 'Moderate Air Quality (US EPA)',
+          desc: 'Air quality is acceptable; however, unusually sensitive people may experience slight symptoms.',
+          badgeColor: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+          residentTip: 'Sensitive individuals should consider gentle breaks during long outdoor exertion.'
+        };
+      }
+      if (aqiVal <= 150) {
+        return {
+          title: 'Unhealthy for Sensitive Groups (US EPA)',
+          desc: 'Members of sensitive groups may experience health effects. The general public is not likely to be affected.',
+          badgeColor: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+          residentTip: 'Children, seniors, and people with respiratory conditions should limit prolonged outdoor exertion.'
+        };
+      }
+      if (aqiVal <= 200) {
+        return {
+          title: 'Unhealthy Air Quality (US EPA)',
+          desc: 'Some members of the general public may experience health effects; sensitive groups may experience more serious health effects.',
+          badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+          residentTip: 'Everyone should reduce outdoor exertion; keep windows closed and wear masks near heavy traffic.'
+        };
+      }
       return {
-        title: 'Good to Satisfactory Air Quality',
+        title: 'Very Unhealthy to Hazardous (US EPA)',
+        desc: 'Health alert: Risk of health effects is increased for everyone in the airshed.',
+        badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+        residentTip: 'Avoid all outdoor activities; vulnerable individuals should remain indoors.'
+      };
+    }
+    // CPCB NAQI standard
+    if (aqiVal <= 100) {
+      return {
+        title: 'Good to Satisfactory Air Quality (CPCB NAQI)',
         desc: 'Air quality is acceptable for outdoor activities and daily routines with minimal health concern.',
         badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
         residentTip: 'Enjoy outdoor exercises and natural room ventilation.'
       };
     }
-    if (aqi <= 200) {
+    if (aqiVal <= 200) {
       return {
-        title: 'Moderate Air Quality',
+        title: 'Moderate Air Quality (CPCB NAQI)',
         desc: 'May cause minor breathing discomfort to sensitive individuals, young children, and asthmatics.',
         badgeColor: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
         residentTip: 'Sensitive individuals should take gentle breaks during long outdoor exertion.'
       };
     }
-    if (aqi <= 300) {
+    if (aqiVal <= 300) {
       return {
         title: 'Poor Air Quality (Stage I GRAP Rules Apply)',
         desc: 'Breathing discomfort to most people on prolonged exposure; dust suppression and sweeping active.',
@@ -399,7 +456,7 @@ export default function ResponseConsole({
         residentTip: 'Avoid early morning outdoor running; wear comfortable dust masks near heavy traffic.'
       };
     }
-    if (aqi <= 400) {
+    if (aqiVal <= 400) {
       return {
         title: 'Very Poor Air Quality (Stage II Targeted Restrictions)',
         desc: 'Respiratory illness likely on prolonged exposure; diesel generators and non-essential emissions curtailed.',
@@ -415,7 +472,7 @@ export default function ResponseConsole({
     };
   };
 
-  const healthGuidance = getHealthGuidance(currentAqi);
+  const healthGuidance = getHealthGuidance(activeAqi, aqiStandard);
 
   return (
     <main className="flex-1 overflow-y-auto bg-[#07090e] text-slate-100">
@@ -483,8 +540,8 @@ export default function ResponseConsole({
               {/* Status Pills */}
               <div className="flex items-center gap-2 font-mono text-xs">
                 <div className="rounded-xl border border-white/10 bg-[#0d141c] px-3 py-2 flex flex-col">
-                  <span className="text-slate-400 text-[9px] uppercase">Current AQI:</span>
-                  <span className="font-bold text-amber-300 text-sm">{currentAqi}</span>
+                  <span className="text-slate-400 text-[9px] uppercase">{aqiStandard === 'epa' ? 'Current EPA AQI:' : 'Current NAQI:'}</span>
+                  <span className="font-bold text-amber-300 text-sm">{activeAqi}</span>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-[#0d141c] px-3 py-2 flex flex-col">
                   <span className="text-slate-400 text-[9px] uppercase">Active Stage:</span>
@@ -506,11 +563,14 @@ export default function ResponseConsole({
         <section className="p-5 rounded-2xl border border-white/[0.08] bg-gradient-to-r from-[#0d1522] via-[#0b1018] to-[#0c141f] shadow-xl">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1.5 max-w-3xl">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${healthGuidance.badgeColor}`}>
-                  {healthGuidance.title}
+                  {healthGuidance.title} ({activeAqi})
                 </span>
                 <span className="text-xs text-slate-400 font-mono">Region: {stationDisplayName}</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/20 text-sky-300 font-bold">
+                  Scale: {aqiStandard === 'epa' ? 'US EPA (aqicn)' : 'CPCB NAQI'}
+                </span>
               </div>
               <h2 className="text-lg font-bold text-white">
                 What does today's air quality mean for residents?

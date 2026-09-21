@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { Station, ActiveFirePoint, Observation, DisasterRiskResponse, DisasterHazard, TelemetrySourceItem } from '@/lib/types';
 import { api } from '@/lib/api';
+import { calculateAqiFromPm25, calculateEpaAqiFromPm25 } from '@/lib/naqi';
 
 // Dynamically import DisasterRiskMap to avoid SSR issues
 const DisasterRiskMap = dynamic(() => import('@/components/map/DisasterRiskMap'), {
@@ -63,6 +64,7 @@ interface IncidentCommandProps {
   stations?: Station[];
   selectedStationId?: string;
   onSelectStation?: (stationId: string) => void;
+  aqiStandard?: 'epa' | 'cpcb';
 }
 
 const DEFAULT_TELEMETRY_SOURCES: TelemetrySourceItem[] = [
@@ -564,7 +566,8 @@ export default function IncidentCommand({
   observations,
   stations,
   selectedStationId,
-  onSelectStation
+  onSelectStation,
+  aqiStandard = 'epa'
 }: IncidentCommandProps) {
   // State for alerts & response actions
   const [completedActions, setCompletedActions] = useState<Record<string, { timestamp: string }>>({});
@@ -671,7 +674,18 @@ export default function IncidentCommand({
 
   const fires = activeFires.length ? activeFires : fallbackFires;
   const totalFrp = disasterRisk?.fires?.total_frp ?? fires.reduce((sum, fire) => sum + fire.frp, 0);
-  const maxAqi = disasterRisk?.air_quality?.max_aqi ?? Math.max(0, ...Object.values(observations).map((item) => item.aqi ?? 0));
+
+  const maxEpaAqi = Math.max(
+    0,
+    ...Object.values(observations).map((item) => {
+      if (item.epa_aqi != null) return item.epa_aqi;
+      const pm25 = item.pollutants?.pm25;
+      return pm25 != null ? calculateEpaAqiFromPm25(pm25).aqi : (item.aqi ?? 0);
+    })
+  );
+  const maxCpcbAqi = disasterRisk?.air_quality?.max_aqi ?? Math.max(0, ...Object.values(observations).map((item) => item.aqi ?? 0));
+  const activeMaxAqi = aqiStandard === 'epa' ? (maxEpaAqi || 161) : (maxCpcbAqi || 100);
+
   const liveObservation = Object.values(observations).some((item) => item.source && !item.source.toLowerCase().includes('demo'));
 
   // Trigger alert response action
@@ -1115,11 +1129,15 @@ export default function IncidentCommand({
                   <HeartPulse className="h-4 w-4 text-orange-400" />
                   <h2 className="text-sm font-semibold">AQI health advisory</h2>
                 </div>
-                <span className="text-[10px] font-mono text-orange-300/70 uppercase">CAAQMS Peak</span>
+                <span className="text-[10px] font-mono text-orange-300/70 uppercase">
+                  {aqiStandard === 'epa' ? 'US EPA (aqicn) Peak' : 'CPCB NAQI Peak'}
+                </span>
               </div>
               <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-mono font-bold text-orange-200">{maxAqi || 286}</span>
-                <span className="text-xs font-mono text-orange-400/80">AIR QUALITY INDEX</span>
+                <span className="text-3xl font-mono font-bold text-orange-200">{activeMaxAqi}</span>
+                <span className="text-xs font-mono text-orange-400/80">
+                  {aqiStandard === 'epa' ? 'US EPA AQI' : 'INDIAN NAQI'}
+                </span>
               </div>
               <p className="mt-2 text-xs leading-relaxed text-slate-400">
                 {aqiHazard?.evidence?.[0] || 'Inversion ceiling trapping ground emissions. Reduce outdoor exposure for sensitive groups.'}

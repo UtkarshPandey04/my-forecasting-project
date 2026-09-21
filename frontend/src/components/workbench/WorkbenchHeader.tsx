@@ -20,13 +20,17 @@ interface WorkbenchHeaderProps {
   lastUpdated?: string | null;
   onOpenAskAgent?: () => void;
   onOpenDataSources?: () => void;
+  aqiStandard?: 'epa' | 'cpcb';
+  onToggleAqiStandard?: (std: 'epa' | 'cpcb') => void;
 }
 
 export default function WorkbenchHeader({
   mode = 'DEMO',
   lastUpdated,
   onOpenAskAgent,
-  onOpenDataSources
+  onOpenDataSources,
+  aqiStandard = 'epa',
+  onToggleAqiStandard
 }: WorkbenchHeaderProps) {
   const [syncTime, setSyncTime] = useState<string>('');
 
@@ -75,11 +79,40 @@ export default function WorkbenchHeader({
         </div>
       </div>
 
+      {/* Global AQI Standard Toggle Switcher */}
+      <div className="flex items-center gap-1 bg-[#0c111a] p-1 rounded-lg border border-white/[0.12] shadow-xs">
+        <span className="text-[10px] uppercase font-mono text-slate-400 font-bold px-1.5 hidden sm:inline">
+          Standard:
+        </span>
+        <button
+          onClick={() => onToggleAqiStandard?.('epa')}
+          className={`px-2.5 py-1 rounded text-xs font-mono font-bold tracking-wide transition-all ${
+            aqiStandard === 'epa'
+              ? 'bg-rose-500/30 text-rose-200 border border-rose-400/60 shadow-[0_0_10px_rgba(244,63,94,0.2)]'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+          }`}
+          title="US EPA Standard (AirNow / aqicn.org scale: PM2.5 60 µg = 153 Unhealthy)"
+        >
+          US EPA (aqicn)
+        </button>
+        <button
+          onClick={() => onToggleAqiStandard?.('cpcb')}
+          className={`px-2.5 py-1 rounded text-xs font-mono font-bold tracking-wide transition-all ${
+            aqiStandard === 'cpcb'
+              ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-400/60 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+          }`}
+          title="Indian National Air Quality Index (CPCB NAQI scale: PM2.5 60 µg = 100 Satisfactory)"
+        >
+          CPCB NAQI
+        </button>
+      </div>
+
       {/* Center: Subtle "Ask AeroSense" Command Bar */}
-      <div className="hidden md:flex items-center">
+      <div className="hidden xl:flex items-center">
         <button
           onClick={onOpenAskAgent}
-          className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-lg bg-[#0c111a] hover:bg-[#121824] border border-white/[0.08] hover:border-white/[0.15] text-xs text-slate-400 hover:text-slate-200 transition-all w-80 justify-between shadow-xs"
+          className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-lg bg-[#0c111a] hover:bg-[#121824] border border-white/[0.08] hover:border-white/[0.15] text-xs text-slate-400 hover:text-slate-200 transition-all w-72 justify-between shadow-xs"
         >
           <span className="flex items-center gap-2 truncate">
             <Sparkles className="w-3.5 h-3.5 text-sky-400 shrink-0" />
@@ -92,7 +125,7 @@ export default function WorkbenchHeader({
       </div>
 
       {/* Right: Telemetry Status & External Controls */}
-      <div className="flex items-center gap-4 text-xs">
+      <div className="flex items-center gap-3 text-xs">
         {/* Data Sources Status Button */}
         <button
           onClick={onOpenDataSources}
@@ -115,3 +148,4 @@ export default function WorkbenchHeader({
     </header>
   );
 }
+

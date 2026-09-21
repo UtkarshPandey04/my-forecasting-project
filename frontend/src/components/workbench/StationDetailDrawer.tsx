@@ -4,12 +4,14 @@ import React from 'react';
 import { X, Wind, Thermometer, Droplets, Compass, Activity, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Station, Observation, ForecastResponse } from '@/lib/types';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from 'recharts';
+import { calculateAqiFromPm25, calculateEpaAqiFromPm25 } from '@/lib/naqi';
 
 interface StationDetailDrawerProps {
   station: Station | null;
   observation: Observation | null;
   forecast: ForecastResponse | null;
   onClose: () => void;
+  aqiStandard?: 'epa' | 'cpcb';
 }
 
 const getAqiColor = (aqi: number | null): string => {
@@ -26,12 +28,28 @@ export default function StationDetailDrawer({
   station,
   observation,
   forecast,
-  onClose
+  onClose,
+  aqiStandard = 'epa'
 }: StationDetailDrawerProps) {
   if (!station) return null;
 
-  const aqi = observation?.aqi ?? null;
-  const aqiColor = getAqiColor(aqi);
+  const pm25 = observation?.pollutants?.pm25 ?? 60.0;
+  const epaResult = calculateEpaAqiFromPm25(pm25);
+  const cpcbResult = calculateAqiFromPm25(pm25);
+
+  const activeAqi = aqiStandard === 'epa'
+    ? (observation?.epa_aqi ?? epaResult.aqi)
+    : (observation?.aqi ?? cpcbResult.aqi);
+
+  const activeCategory = aqiStandard === 'epa'
+    ? (observation?.epa_category ?? epaResult.category)
+    : (observation?.aqi_category ?? cpcbResult.category);
+
+  const activeColor = aqiStandard === 'epa'
+    ? (observation?.epa_color ?? epaResult.color)
+    : getAqiColor(activeAqi);
+
+  const standardLabel = aqiStandard === 'epa' ? 'Current US EPA AQI (aqicn)' : 'Current Indian NAQI (CPCB)';
   const pollutants = observation?.pollutants;
   const meteo = observation?.meteorology;
 
@@ -61,22 +79,22 @@ export default function StationDetailDrawer({
         <div className="p-4 border-b border-white/[0.06] bg-[#070b12] flex items-center justify-between">
           <div>
             <span className="text-[10px] uppercase font-mono text-slate-400 block">
-              Current Indian NAQI
+              {standardLabel}
             </span>
             <div className="flex items-baseline gap-2 mt-0.5">
-              <span className="text-3xl font-extrabold font-mono" style={{ color: aqiColor }}>
-                {aqi ?? '--'}
+              <span className="text-3xl font-extrabold font-mono" style={{ color: activeColor }}>
+                {activeAqi ?? '--'}
               </span>
-              {observation?.aqi_category && (
+              {activeCategory && (
                 <span
                   className="text-xs px-2 py-0.5 rounded font-semibold border"
                   style={{
-                    backgroundColor: `${aqiColor}20`,
-                    borderColor: `${aqiColor}50`,
-                    color: aqiColor
+                    backgroundColor: `${activeColor}20`,
+                    borderColor: `${activeColor}50`,
+                    color: activeColor
                   }}
                 >
-                  {observation.aqi_category}
+                  {activeCategory}
                 </span>
               )}
             </div>
@@ -84,7 +102,7 @@ export default function StationDetailDrawer({
 
           <div className="text-right text-[11px] font-mono text-slate-400 space-y-0.5">
             <div>Prominent: <strong className="text-slate-200">{observation?.prominent_pollutant || 'PM2.5'}</strong></div>
-            <div>Mode: <span className="text-sky-400">{observation?.mode || 'DEMO'}</span></div>
+            <div>Scale: <span className="text-sky-400 font-bold">{aqiStandard === 'epa' ? 'US EPA' : 'CPCB'}</span></div>
           </div>
         </div>
 

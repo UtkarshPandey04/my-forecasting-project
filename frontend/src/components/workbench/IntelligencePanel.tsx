@@ -9,6 +9,7 @@ import {
   Observation,
   ForecastResponse
 } from '@/lib/types';
+import { calculateAqiFromPm25, calculateEpaAqiFromPm25 } from '@/lib/naqi';
 import {
   Wind,
   Layers,
@@ -35,6 +36,7 @@ interface IntelligencePanelProps {
   selectedObservation: Observation | null;
   forecast: ForecastResponse | null;
   loading?: boolean;
+  aqiStandard?: 'epa' | 'cpcb';
 }
 
 const getAqiColor = (aqi: number | null): string => {
@@ -108,6 +110,7 @@ export default function IntelligencePanel({
   selectedObservation,
   forecast,
   loading = false,
+  aqiStandard = 'epa'
 }: IntelligencePanelProps) {
   const [activeTab, setActiveTab] = useState<'atmospheric' | 'station'>('atmospheric');
 
@@ -128,8 +131,22 @@ export default function IntelligencePanel({
   const invVal = indices?.inversion_risk_score ?? 45;
   const transVal = indices?.wind_transport_indicator ?? 50;
 
-  const aqi = selectedObservation?.aqi ?? null;
-  const aqiColor = getAqiColor(aqi);
+  const pm25 = selectedObservation?.pollutants?.pm25 ?? 60.0;
+  const epaRes = calculateEpaAqiFromPm25(pm25);
+  const cpcbRes = calculateAqiFromPm25(pm25);
+
+  const activeAqi = aqiStandard === 'epa'
+    ? (selectedObservation?.epa_aqi ?? epaRes.aqi)
+    : (selectedObservation?.aqi ?? cpcbRes.aqi);
+
+  const activeCategory = aqiStandard === 'epa'
+    ? (selectedObservation?.epa_category ?? epaRes.category)
+    : (selectedObservation?.aqi_category ?? cpcbRes.category);
+
+  const activeColor = aqiStandard === 'epa'
+    ? (selectedObservation?.epa_color ?? epaRes.color)
+    : getAqiColor(activeAqi);
+
   const pollutants = selectedObservation?.pollutants;
   const meteo = selectedObservation?.meteorology;
 
@@ -344,27 +361,29 @@ export default function IntelligencePanel({
                   {/* AQI Hero */}
                   <div className="p-3 bg-white/[0.02] border border-white/[0.06] rounded-lg flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] font-mono text-slate-400 uppercase block">Current AQI</span>
+                      <span className="text-[10px] font-mono text-slate-400 uppercase block">
+                        Current {aqiStandard === 'epa' ? 'US EPA AQI' : 'CPCB NAQI'}
+                      </span>
                       <div className="flex items-baseline gap-2 mt-0.5">
-                        <span className="text-3xl font-extrabold font-mono" style={{ color: aqiColor }}>
-                          {aqi ?? '--'}
+                        <span className="text-3xl font-extrabold font-mono" style={{ color: activeColor }}>
+                          {activeAqi ?? '--'}
                         </span>
-                        {selectedObservation?.aqi_category && (
+                        {activeCategory && (
                           <span
                             className="text-xs px-2 py-0.5 rounded font-semibold border"
                             style={{
-                              backgroundColor: `${aqiColor}20`,
-                              borderColor: `${aqiColor}50`,
-                              color: aqiColor
+                              backgroundColor: `${activeColor}20`,
+                              borderColor: `${activeColor}50`,
+                              color: activeColor
                             }}
                           >
-                            {selectedObservation.aqi_category}
+                            {activeCategory}
                           </span>
                         )}
                       </div>
                     </div>
                     <div className="text-right text-[11px] font-mono text-slate-400">
-                      <div>Prominent: <strong className="text-white">{selectedObservation?.prominent_pollutant || 'PM2.5'}</strong></div>
+                      <div>Scale: <strong className="text-sky-300 font-bold">{aqiStandard === 'epa' ? 'US EPA' : 'CPCB'}</strong></div>
                       <div>Mode: <span className="text-sky-400">{selectedObservation?.mode || 'DEMO'}</span></div>
                     </div>
                   </div>

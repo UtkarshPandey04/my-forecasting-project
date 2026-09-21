@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { Station, ScenarioResponse, PresetScenario } from '@/lib/types';
+import { calculateAqiFromPm25, calculateEpaAqiFromPm25 } from '@/lib/naqi';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -34,9 +35,14 @@ import {
 interface WorkbenchWhatIfProps {
   stations: Station[];
   selectedStationId: string;
+  aqiStandard?: 'epa' | 'cpcb';
 }
 
-export default function WorkbenchWhatIf({ stations, selectedStationId }: WorkbenchWhatIfProps) {
+export default function WorkbenchWhatIf({
+  stations,
+  selectedStationId,
+  aqiStandard = 'epa'
+}: WorkbenchWhatIfProps) {
   const [stationId, setStationId] = useState(selectedStationId);
   const [presets, setPresets] = useState<PresetScenario[]>([]);
   const [windPct, setWindPct] = useState<number>(0);
@@ -105,6 +111,26 @@ export default function WorkbenchWhatIf({ stations, selectedStationId }: Workben
 
   const delta = scenarioData?.summary_delta;
   const isImproved = (delta?.net_change_pm25 ?? 0) < 0;
+
+  const [chartMetric, setChartMetric] = useState<'pm25' | 'aqi'>('pm25');
+
+  const calcAqi = (pm: number) =>
+    aqiStandard === 'epa' ? calculateEpaAqiFromPm25(pm) : calculateAqiFromPm25(pm);
+
+  const baselineAqi = delta ? calcAqi(delta.mean_baseline_pm25) : null;
+  const scenarioAqi = delta ? calcAqi(delta.mean_scenario_pm25) : null;
+
+  const chartPoints = useMemo(() => {
+    return (scenarioData?.points || []).map((p) => {
+      const bAqi = calcAqi(p.baseline_pm25).aqi;
+      const sAqi = calcAqi(p.scenario_pm25).aqi;
+      return {
+        ...p,
+        baseline_aqi: bAqi,
+        scenario_aqi: sAqi
+      };
+    });
+  }, [scenarioData?.points, aqiStandard]);
 
   return (
     <div className="flex-1 p-6 overflow-y-auto space-y-6 bg-[#06090e]">
@@ -281,12 +307,12 @@ export default function WorkbenchWhatIf({ stations, selectedStationId }: Workben
 
           {/* Delta Pill */}
           {delta && (
-            <div className={`p-4 rounded-xl border flex flex-col gap-2 ${
+            <div className={`p-4 rounded-xl border flex flex-col gap-2.5 ${
               isImproved ? 'bg-emerald-950/20 border-emerald-800/40' : 'bg-amber-950/20 border-amber-800/40'
             }`}>
               <div className="flex items-center justify-between">
                 <span className="text-[10px] uppercase font-mono text-slate-400 font-semibold">
-                  Net Mean Impact
+                  Net Mean Impact ({aqiStandard === 'epa' ? 'US EPA Scale' : 'CPCB NAQI'})
                 </span>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
                   isImproved ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
@@ -307,6 +333,20 @@ export default function WorkbenchWhatIf({ stations, selectedStationId }: Workben
                   <span className="text-[10px] ml-1">({delta.net_change_pct > 0 ? `+${delta.net_change_pct.toFixed(0)}` : delta.net_change_pct.toFixed(0)}%)</span>
                 </div>
               </div>
+
+              {/* Dynamic AQI Shift */}
+              {baselineAqi && scenarioAqi && (
+                <div className="flex items-center justify-between border-t border-white/[0.06] pt-2 text-[11px] font-mono">
+                  <span className="text-slate-400">AQI Impact:</span>
+                  <span className="flex items-center gap-1">
+                    <span className="font-bold" style={{ color: baselineAqi.color }}>{baselineAqi.aqi}</span>
+                    <span className="text-[9px] text-slate-500">({baselineAqi.category})</span>
+                    <ArrowRight className="inline w-3 h-3 text-slate-500" />
+                    <span className="font-bold" style={{ color: scenarioAqi.color }}>{scenarioAqi.aqi}</span>
+                    <span className="text-[9px] font-semibold" style={{ color: scenarioAqi.color }}>({scenarioAqi.category})</span>
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -323,35 +363,89 @@ export default function WorkbenchWhatIf({ stations, selectedStationId }: Workben
 
         {/* Right Chart */}
         <div className="lg:col-span-2 bg-[#0c111a] border border-white/[0.08] rounded-xl p-5 flex flex-col justify-between">
-          <div className="mb-4">
-            <h3 className="text-sm font-bold text-white">
-              Baseline vs Counterfactual Simulation Trajectory
-            </h3>
-            <p className="text-xs text-slate-400">
-              Coupled baseline trajectory vs perturbed scenario with 10th-90th percentile uncertainty ribbon
-            </p>
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                Baseline vs Counterfactual Simulation Trajectory
+              </h3>
+              <p className="text-xs text-slate-400">
+                Coupled baseline trajectory vs perturbed scenario with uncertainty ribbon
+              </p>
+            </div>
+
+            {/* Metric Switcher Tab for What-If */}
+            <div className="flex items-center gap-1 bg-[#06090e] border border-white/[0.08] p-0.5 rounded-md text-[11px] font-mono self-start sm:self-auto">
+              <button
+                onClick={() => setChartMetric('pm25')}
+                className={`px-2.5 py-0.5 rounded transition-colors ${
+                  chartMetric === 'pm25'
+                    ? 'bg-sky-500/20 text-sky-300 font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                PM2.5 (µg/m³)
+              </button>
+              <button
+                onClick={() => setChartMetric('aqi')}
+                className={`px-2.5 py-0.5 rounded transition-colors ${
+                  chartMetric === 'aqi'
+                    ? 'bg-sky-500/20 text-sky-300 font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {aqiStandard === 'epa' ? 'US EPA AQI' : 'CPCB NAQI'}
+              </button>
+            </div>
           </div>
 
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={scenarioData?.points || []} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+              <ComposedChart data={chartPoints} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
                 <XAxis dataKey="hour_offset" stroke="#64748b" fontSize={11} tickFormatter={(v) => `+${v}h`} />
-                <YAxis stroke="#64748b" fontSize={11} unit=" µg" />
+                <YAxis stroke="#64748b" fontSize={11} unit={chartMetric === 'aqi' ? '' : ' µg'} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#070b12', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }}
-                  formatter={(value) => [`${value ?? '--'} µg/m³`, '']}
+                  formatter={(value) => [
+                    `${typeof value === 'number' ? Math.round(value) : value} ${chartMetric === 'aqi' ? (aqiStandard === 'epa' ? 'EPA' : 'NAQI') : 'µg/m³'}`,
+                    ''
+                  ]}
                   labelFormatter={(l) => `Horizon: +${l}h`}
                 />
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                <ReferenceLine y={60} stroke="#eab308" strokeDasharray="3 3" />
-                <ReferenceLine y={120} stroke="#f97316" strokeDasharray="3 3" />
 
-                <Area type="monotone" dataKey="uncertainty_upper" stroke="none" fill="#38bdf8" fillOpacity={0.12} name="Uncertainty Range (10-90%)" />
-                <Area type="monotone" dataKey="uncertainty_lower" stroke="none" fill="#0c111a" fillOpacity={1.0} />
+                {chartMetric === 'pm25' && (
+                  <>
+                    <ReferenceLine y={60} stroke="#eab308" strokeDasharray="3 3" />
+                    <ReferenceLine y={120} stroke="#f97316" strokeDasharray="3 3" />
+                    <Area type="monotone" dataKey="uncertainty_upper" stroke="none" fill="#38bdf8" fillOpacity={0.12} name="Uncertainty Range (10-90%)" />
+                    <Area type="monotone" dataKey="uncertainty_lower" stroke="none" fill="#0c111a" fillOpacity={1.0} />
+                    <Line type="monotone" dataKey="baseline_pm25" name="Baseline Forecast" stroke="#64748b" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="scenario_pm25" name="Scenario Counterfactual" stroke={isImproved ? '#10b981' : '#f97316'} strokeWidth={2.5} dot={false} />
+                  </>
+                )}
 
-                <Line type="monotone" dataKey="baseline_pm25" name="Baseline Forecast" stroke="#64748b" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="scenario_pm25" name="Scenario Counterfactual" stroke={isImproved ? '#10b981' : '#f97316'} strokeWidth={2.5} dot={false} />
+                {chartMetric === 'aqi' && aqiStandard === 'epa' && (
+                  <>
+                    <ReferenceLine y={50} stroke="#22c55e" strokeDasharray="3 3" label={{ value: 'Good', fill: '#22c55e', fontSize: 9 }} />
+                    <ReferenceLine y={100} stroke="#eab308" strokeDasharray="3 3" label={{ value: 'Mod', fill: '#eab308', fontSize: 9 }} />
+                    <ReferenceLine y={150} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Sensitive', fill: '#f97316', fontSize: 9 }} />
+                    <ReferenceLine y={200} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Unhealthy', fill: '#ef4444', fontSize: 9 }} />
+                    <Line type="monotone" dataKey="baseline_aqi" name="Baseline EPA AQI" stroke="#64748b" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="scenario_aqi" name="Scenario EPA AQI" stroke={isImproved ? '#10b981' : '#f97316'} strokeWidth={2.5} dot={false} />
+                  </>
+                )}
+
+                {chartMetric === 'aqi' && aqiStandard === 'cpcb' && (
+                  <>
+                    <ReferenceLine y={50} stroke="#22c55e" strokeDasharray="3 3" label={{ value: 'Good', fill: '#22c55e', fontSize: 9 }} />
+                    <ReferenceLine y={100} stroke="#84cc16" strokeDasharray="3 3" label={{ value: 'Satisfactory', fill: '#84cc16', fontSize: 9 }} />
+                    <ReferenceLine y={200} stroke="#eab308" strokeDasharray="3 3" label={{ value: 'Moderate', fill: '#eab308', fontSize: 9 }} />
+                    <ReferenceLine y={300} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Poor', fill: '#f97316', fontSize: 9 }} />
+                    <Line type="monotone" dataKey="baseline_aqi" name="Baseline CPCB NAQI" stroke="#64748b" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="scenario_aqi" name="Scenario CPCB NAQI" stroke={isImproved ? '#10b981' : '#f97316'} strokeWidth={2.5} dot={false} />
+                  </>
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>

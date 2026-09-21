@@ -7,6 +7,8 @@ import { Wind, Thermometer, Activity, Droplets } from 'lucide-react';
 interface OverviewScreenProps {
   observation: Observation | null;
   stationName: string;
+  aqiStandard?: 'epa' | 'cpcb';
+  onToggleAqiStandard?: (std: 'epa' | 'cpcb') => void;
 }
 
 const getAqiColor = (aqi: number | null): string => {
@@ -19,7 +21,12 @@ const getAqiColor = (aqi: number | null): string => {
   return '#7c3aed';
 };
 
-export default function OverviewScreen({ observation, stationName }: OverviewScreenProps) {
+export default function OverviewScreen({
+  observation,
+  stationName,
+  aqiStandard = 'epa',
+  onToggleAqiStandard
+}: OverviewScreenProps) {
   const aqi = observation?.aqi ?? null;
   const aqiColor = getAqiColor(aqi);
   const pm25 = observation?.pollutants?.pm25 ?? null;
@@ -28,40 +35,71 @@ export default function OverviewScreen({ observation, stationName }: OverviewScr
   const ws = observation?.meteorology?.wind_speed ?? null;
   const wd = observation?.meteorology?.wind_direction ?? null;
 
+  const currentCategory = aqiStandard === 'epa'
+    ? (observation?.epa_category || 'Unhealthy')
+    : (observation?.aqi_category || 'Satisfactory');
+
+  const currentCatColor = aqiStandard === 'epa'
+    ? (observation?.epa_color || '#cc0033')
+    : aqiColor;
+
   return (
     <div className="bg-[#070b12] border-b border-white/[0.08] px-4 py-2 flex items-center justify-between gap-4 overflow-x-auto text-xs shrink-0 select-none">
       {/* Station Context */}
       <div className="flex items-center gap-2 shrink-0">
-        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: currentCatColor }} />
         <span className="font-bold text-white tracking-tight truncate">{stationName}</span>
-        <span className="text-[10px] font-mono text-slate-400 bg-white/[0.04] px-1.5 py-0.2 rounded border border-white/[0.06]">
-          {observation?.aqi_category || 'Active Station'}
+        <span
+          className="text-[10px] font-mono px-2 py-0.5 rounded font-bold border transition-all"
+          style={{
+            backgroundColor: `${currentCatColor}20`,
+            borderColor: `${currentCatColor}60`,
+            color: currentCatColor
+          }}
+        >
+          {currentCategory}
         </span>
       </div>
 
       {/* Connected KPI Strip */}
-      <div className="flex items-center gap-4 shrink-0 font-mono text-xs">
+      <div className="flex items-center gap-3 shrink-0 font-mono text-xs">
         {/* US EPA (aqicn) */}
-        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/25" title="US EPA Standard (AirNow / aqicn.org / aqi.in scale)">
-          <span className="text-rose-400 text-[10px] font-sans font-semibold">EPA (aqicn):</span>
-          <span className="font-extrabold text-sm text-rose-300">
+        <button
+          onClick={() => onToggleAqiStandard?.('epa')}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded transition-all cursor-pointer ${
+            aqiStandard === 'epa'
+              ? 'bg-rose-500/25 border-2 border-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.35)]'
+              : 'bg-white/[0.03] border border-white/[0.08] opacity-65 hover:opacity-100'
+          }`}
+          title="Click to set active standard: US EPA (AirNow / aqicn.org / aqi.in scale)"
+        >
+          <span className="text-rose-400 text-[10px] font-sans font-bold">EPA (aqicn):</span>
+          <span className="font-extrabold text-sm text-rose-200">
             {observation?.epa_aqi ?? aqi ?? '--'}
           </span>
-          <span className="text-[9px] font-sans text-rose-200/80">
+          <span className="text-[9px] font-sans font-bold px-1 rounded bg-rose-500/20 text-rose-300">
             {observation?.epa_category || 'Unhealthy'}
           </span>
-        </div>
+        </button>
 
         {/* CPCB NAQI */}
-        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]" title="Official Central Pollution Control Board (CPCB) NAQI scale">
-          <span className="text-slate-400 text-[10px] font-sans font-semibold">CPCB NAQI:</span>
-          <span className="font-extrabold text-sm" style={{ color: aqiColor }}>
+        <button
+          onClick={() => onToggleAqiStandard?.('cpcb')}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded transition-all cursor-pointer ${
+            aqiStandard === 'cpcb'
+              ? 'bg-emerald-500/25 border-2 border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)]'
+              : 'bg-white/[0.03] border border-white/[0.08] opacity-65 hover:opacity-100'
+          }`}
+          title="Click to set active standard: Official Central Pollution Control Board (CPCB) NAQI scale"
+        >
+          <span className="text-slate-300 text-[10px] font-sans font-bold">CPCB NAQI:</span>
+          <span className="font-extrabold text-sm text-emerald-300">
             {aqi ?? '--'}
           </span>
-          <span className="text-[9px] font-sans text-slate-400">
+          <span className="text-[9px] font-sans font-bold px-1 rounded bg-emerald-500/20 text-emerald-300">
             {observation?.aqi_category || 'Satisfactory'}
           </span>
-        </div>
+        </button>
 
         <span className="text-slate-700">|</span>
 

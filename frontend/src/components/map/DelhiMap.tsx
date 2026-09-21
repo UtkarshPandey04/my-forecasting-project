@@ -23,6 +23,8 @@ interface DelhiMapProps {
   inversionRiskScore?: number;
   className?: string;
   activeMetric?: 'aqi' | 'pm25' | 'o3';
+  aqiStandard?: 'epa' | 'cpcb';
+  onToggleAqiStandard?: (standard: 'epa' | 'cpcb') => void;
 }
 
 const getAqiColor = (aqi: number | null): string => {
@@ -165,13 +167,21 @@ export default function DelhiMap({
   windSpeedMs = 3.2,
   inversionRiskScore = 45,
   className = '',
-  activeMetric = 'aqi'
+  activeMetric = 'aqi',
+  aqiStandard: propAqiStandard,
+  onToggleAqiStandard
 }: DelhiMapProps) {
   const [hoveredStation, setHoveredStation] = useState<StationWithObs | null>(null);
   const [firePopup, setFirePopup] = useState<ActiveFirePoint | null>(null);
   const [mapStyleKey, setMapStyleKey] = useState<'dark' | 'satellite' | 'topo'>('dark');
   const [selectedMetric, setSelectedMetric] = useState<MapMetric>((activeMetric as MapMetric) || 'aqi');
-  const [aqiStandard, setAqiStandard] = useState<'epa' | 'cpcb'>('epa');
+  const [localAqiStandard, setLocalAqiStandard] = useState<'epa' | 'cpcb'>('epa');
+
+  const aqiStandard = propAqiStandard ?? localAqiStandard;
+  const setAqiStandard = (std: 'epa' | 'cpcb') => {
+    setLocalAqiStandard(std);
+    onToggleAqiStandard?.(std);
+  };
 
   // Layer Toggles
   const [showFires, setShowFires] = useState(true);
@@ -519,32 +529,42 @@ export default function DelhiMap({
             offset={14}
           >
             <div className="p-3 text-xs w-64 bg-[#0a0f16]/95 border border-cyan-400/30 rounded-md shadow-2xl backdrop-blur-md">
-              <div className="flex items-center justify-between border-b border-white/10 pb-1.5 mb-2">
-                <div className="min-w-0 pr-2">
-                  <div className="font-bold text-white text-xs truncate">{hoveredStation.name}</div>
-                  <div className="text-[10px] font-mono text-slate-400 truncate">{hoveredStation.city}, {hoveredStation.state}</div>
-                </div>
-                {hoveredStation.observation?.aqi !== undefined && (
-                  <span
-                    className="px-2 py-0.5 rounded text-[10px] font-mono font-bold shrink-0"
-                    style={{
-                      backgroundColor: `${getAqiColor(hoveredStation.observation?.aqi ?? null)}25`,
-                      color: getAqiColor(hoveredStation.observation?.aqi ?? null),
-                      border: `1px solid ${getAqiColor(hoveredStation.observation?.aqi ?? null)}50`
-                    }}
-                  >
-                    AQI {hoveredStation.observation?.aqi ?? '--'}
-                  </span>
-                )}
-              </div>
+              {(() => {
+                const pm25 = hoveredStation.observation?.pollutants?.pm25 ?? 60.0;
+                const epaRes = calculateEpaAqiFromPm25(pm25);
+                const cpcbAqi = hoveredStation.observation?.aqi ?? 100;
+                const activeAqi = aqiStandard === 'epa' ? (hoveredStation.observation?.epa_aqi ?? epaRes.aqi) : cpcbAqi;
+                const activeColor = aqiStandard === 'epa' ? (hoveredStation.observation?.epa_color ?? epaRes.color) : getAqiColor(cpcbAqi);
+                const activeLabel = aqiStandard === 'epa' ? 'US EPA' : 'CPCB';
+                return (
+                  <>
+                    <div className="flex items-center justify-between border-b border-white/10 pb-1.5 mb-2">
+                      <div className="min-w-0 pr-2">
+                        <div className="font-bold text-white text-xs truncate">{hoveredStation.name}</div>
+                        <div className="text-[10px] font-mono text-slate-400 truncate">{hoveredStation.city}, {hoveredStation.state}</div>
+                      </div>
+                      <span
+                        className="px-2 py-0.5 rounded text-[10px] font-mono font-bold shrink-0"
+                        style={{
+                          backgroundColor: `${activeColor}25`,
+                          color: activeColor,
+                          border: `1px solid ${activeColor}50`
+                        }}
+                      >
+                        {activeLabel} {activeAqi}
+                      </span>
+                    </div>
 
-              {/* Pollutants mini grid */}
-              <div className="grid grid-cols-2 gap-1 text-[10px] font-mono mb-2 bg-black/40 p-1.5 rounded border border-white/5">
-                <div>PM2.5: <strong className="text-cyan-300">{hoveredStation.observation?.pollutants?.pm25?.toFixed(1) ?? '--'} µg</strong></div>
-                <div>PM10: <strong className="text-slate-200">{hoveredStation.observation?.pollutants?.pm10?.toFixed(0) ?? '--'} µg</strong></div>
-                <div>NO2: <strong className="text-slate-200">{hoveredStation.observation?.pollutants?.no2?.toFixed(1) ?? '--'} µg</strong></div>
-                <div>O3: <strong className="text-slate-200">{hoveredStation.observation?.pollutants?.o3?.toFixed(1) ?? '--'} µg</strong></div>
-              </div>
+                    {/* Scale Breakdown & Pollutants mini grid */}
+                    <div className="grid grid-cols-2 gap-1 text-[10px] font-mono mb-2 bg-black/40 p-1.5 rounded border border-white/5">
+                      <div>EPA (aqicn): <strong className={aqiStandard === 'epa' ? 'text-rose-300 font-bold' : 'text-slate-400'}>{hoveredStation.observation?.epa_aqi ?? epaRes.aqi}</strong></div>
+                      <div>CPCB NAQI: <strong className={aqiStandard === 'cpcb' ? 'text-emerald-300 font-bold' : 'text-slate-400'}>{cpcbAqi}</strong></div>
+                      <div>PM2.5: <strong className="text-cyan-300">{pm25.toFixed(1)} µg</strong></div>
+                      <div>PM10: <strong className="text-slate-200">{hoveredStation.observation?.pollutants?.pm10?.toFixed(0) ?? '--'} µg</strong></div>
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Regional Weather Grid */}
               <div className="border-t border-white/10 pt-1.5">

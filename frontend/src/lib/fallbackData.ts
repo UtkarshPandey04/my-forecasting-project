@@ -8,9 +8,16 @@ import {
   TransportResponse,
   ForecastExplanation,
   DisasterRiskResponse,
-  TelemetryMeshResponse
+  TelemetryMeshResponse,
+  ResidueListing,
+  BuyerRequirement,
+  MarketplaceMatch,
+  TransportOrder,
+  CircularImpactMetrics,
+  IncidentRecord
 } from './types';
 import { MitigationPartner } from './api';
+
 import { calculateAqiFromPm25, calculateEpaAqiFromPm25 } from './naqi';
 
 
@@ -951,3 +958,375 @@ export function generateFallbackExplanation(stationId: string): ForecastExplanat
     mode: 'calibrated_model'
   };
 }
+
+export const FALLBACK_CIRCULAR_LISTINGS: ResidueListing[] = [
+  {
+    id: 'LST-MEERUT-01',
+    farmer_name: 'Sardar Gurpreet Singh',
+    farmer_id: 'FRM-UP-8821',
+    location: 'Meerut, Uttar Pradesh',
+    district: 'Meerut',
+    state: 'Uttar Pradesh',
+    crop_type: 'Paddy',
+    residue_type: 'Rice Straw (Parali)',
+    quantity_tons: 8.5,
+    harvest_date: '2026-09-20',
+    availability_date: '2026-09-25',
+    moisture_pct: 11.5,
+    preferred_collection_date: '2026-09-26',
+    expected_price_per_ton: 2200,
+    category: 'agricultural_residue',
+    recommended_pathways: ['cbg_biogas', 'biochar', 'biomass_fuel'],
+    created_at: '2026-09-21T08:30:00Z',
+    status: 'LISTED',
+    active_matches_count: 2,
+    is_demo: true
+  },
+  {
+    id: 'LST-PANIPAT-02',
+    farmer_name: 'Rameshwar Sharma',
+    farmer_id: 'FRM-HR-4109',
+    location: 'Panipat Rural, Haryana',
+    district: 'Panipat',
+    state: 'Haryana',
+    crop_type: 'Paddy',
+    residue_type: 'Rice Straw Bales',
+    quantity_tons: 24.0,
+    harvest_date: '2026-09-18',
+    availability_date: '2026-09-22',
+    moisture_pct: 13.0,
+    preferred_collection_date: '2026-09-24',
+    expected_price_per_ton: 2350,
+    category: 'agricultural_residue',
+    recommended_pathways: ['cbg_biogas', 'biomass_fuel'],
+    created_at: '2026-09-21T09:15:00Z',
+    status: 'LISTED',
+    active_matches_count: 3,
+    is_demo: true
+  },
+  {
+    id: 'LST-KARNAL-03',
+    farmer_name: 'Kisan Kalyan Union (FPO Karnal)',
+    farmer_id: 'FPO-HR-003',
+    location: 'Taraori, Karnal, Haryana',
+    district: 'Karnal',
+    state: 'Haryana',
+    crop_type: 'Paddy (Basmati)',
+    residue_type: 'Loose Paddy Straw',
+    quantity_tons: 115.0,
+    harvest_date: '2026-09-19',
+    availability_date: '2026-09-23',
+    moisture_pct: 14.2,
+    preferred_collection_date: '2026-09-27',
+    expected_price_per_ton: 2150,
+    category: 'agricultural_residue',
+    recommended_pathways: ['packaging_material', 'paper_pulp', 'cbg_biogas'],
+    created_at: '2026-09-21T10:00:00Z',
+    status: 'LISTED',
+    active_matches_count: 2,
+    is_demo: true
+  },
+  {
+    id: 'LST-SONIPAT-04',
+    farmer_name: 'Deepak Dahiya',
+    farmer_id: 'FRM-HR-7712',
+    location: 'Gohana, Sonipat, Haryana',
+    district: 'Sonipat',
+    state: 'Haryana',
+    crop_type: 'Paddy',
+    residue_type: 'Rice Straw Bales',
+    quantity_tons: 18.5,
+    harvest_date: '2026-09-20',
+    availability_date: '2026-09-24',
+    moisture_pct: 10.8,
+    preferred_collection_date: '2026-09-25',
+    expected_price_per_ton: 2400,
+    category: 'agricultural_residue',
+    recommended_pathways: ['mushroom_substrate', 'biochar'],
+    created_at: '2026-09-21T11:20:00Z',
+    status: 'MATCHED',
+    active_matches_count: 1,
+    is_demo: true
+  }
+];
+
+export const FALLBACK_CIRCULAR_BUYERS: BuyerRequirement[] = [
+  {
+    id: 'REQ-GREENBIO-01',
+    company_name: 'GreenBio Energy CBG Corp',
+    buyer_id: 'BUY-CBG-001',
+    buyer_type: 'CBG / Bio-CNG Facility',
+    location: 'Bulandshahr Industrial Area, UP',
+    required_material: 'Rice Straw',
+    required_quantity_tons: 500.0,
+    max_distance_km: 100.0,
+    min_price_per_ton: 2200,
+    max_price_per_ton: 2600,
+    pickup_available: true,
+    required_moisture_max_pct: 16.0,
+    availability_period: 'Sep-Nov 2026',
+    conversion_pathway: 'cbg_biogas',
+    created_at: '2026-09-20T12:00:00Z',
+    status: 'ACTIVE',
+    fulfilled_tons: 128.5,
+    is_demo: true
+  },
+  {
+    id: 'REQ-INDRABIOCHAR-02',
+    company_name: 'Indraprastha Agri-Biochar Ltd',
+    buyer_id: 'BUY-CHAR-002',
+    buyer_type: 'Biochar & Soil Regeneration',
+    location: 'Ghaziabad Eco-Park, UP',
+    required_material: 'Rice Straw',
+    required_quantity_tons: 250.0,
+    max_distance_km: 85.0,
+    min_price_per_ton: 2100,
+    max_price_per_ton: 2450,
+    pickup_available: true,
+    required_moisture_max_pct: 14.0,
+    availability_period: 'Sep-Dec 2026',
+    conversion_pathway: 'biochar',
+    created_at: '2026-09-20T14:30:00Z',
+    status: 'ACTIVE',
+    fulfilled_tons: 62.0,
+    is_demo: true
+  },
+  {
+    id: 'REQ-ECOPAK-03',
+    company_name: 'EcoPulse Biodegradable Packaging',
+    buyer_id: 'BUY-PAK-003',
+    buyer_type: 'Molded Pulp Packaging',
+    location: 'Sonipat Agro-Cluster, Haryana',
+    required_material: 'Rice Straw Bales',
+    required_quantity_tons: 300.0,
+    max_distance_km: 75.0,
+    min_price_per_ton: 2300,
+    max_price_per_ton: 2700,
+    pickup_available: false,
+    required_moisture_max_pct: 12.0,
+    availability_period: 'Sep-Nov 2026',
+    conversion_pathway: 'packaging_material',
+    created_at: '2026-09-21T06:00:00Z',
+    status: 'ACTIVE',
+    fulfilled_tons: 40.0,
+    is_demo: true
+  }
+];
+
+export const FALLBACK_CIRCULAR_MATCHES: MarketplaceMatch[] = [
+  {
+    id: 'MCH-8821-001',
+    listing_id: 'LST-MEERUT-01',
+    requirement_id: 'REQ-GREENBIO-01',
+    farmer_name: 'Sardar Gurpreet Singh',
+    farmer_location: 'Meerut, Uttar Pradesh',
+    buyer_name: 'GreenBio Energy CBG Corp',
+    buyer_location: 'Bulandshahr Industrial Area, UP',
+    material: 'Rice Straw (Parali)',
+    matched_quantity_tons: 8.5,
+    distance_km: 74.2,
+    compatibility_score: 92.4,
+    estimated_transport_cost_inr: 2650,
+    estimated_farmer_revenue_inr: 18700,
+    estimated_processor_value_inr: 30855,
+    platform_fee_inr: 655,
+    avoided_burning_tons: 8.5,
+    estimated_pm25_avoided_kg: 32.7,
+    estimated_co2e_avoided_tons: 12.4,
+    status: 'PROPOSED',
+    created_at: '2026-09-21T08:35:00Z',
+    is_demo: true
+  },
+  {
+    id: 'MCH-4109-002',
+    listing_id: 'LST-PANIPAT-02',
+    requirement_id: 'REQ-INDRABIOCHAR-02',
+    farmer_name: 'Rameshwar Sharma',
+    farmer_location: 'Panipat Rural, Haryana',
+    buyer_name: 'Indraprastha Agri-Biochar Ltd',
+    buyer_location: 'Ghaziabad Eco-Park, UP',
+    material: 'Rice Straw Bales',
+    matched_quantity_tons: 24.0,
+    distance_km: 84.6,
+    compatibility_score: 86.8,
+    estimated_transport_cost_inr: 8530,
+    estimated_farmer_revenue_inr: 56400,
+    estimated_processor_value_inr: 93060,
+    platform_fee_inr: 1974,
+    avoided_burning_tons: 24.0,
+    estimated_pm25_avoided_kg: 92.4,
+    estimated_co2e_avoided_tons: 35.0,
+    status: 'PROPOSED',
+    created_at: '2026-09-21T09:20:00Z',
+    is_demo: true
+  }
+];
+
+export const FALLBACK_TRANSPORT_ORDERS: TransportOrder[] = [
+  {
+    id: 'TRP-NCR-991',
+    match_id: 'MCH-8821-001',
+    listing_id: 'LST-SONIPAT-04',
+    buyer_id: 'REQ-GREENBIO-01',
+    pickup_location: 'Gohana, Sonipat, Haryana',
+    delivery_location: 'Bulandshahr Industrial Area, UP',
+    quantity_tons: 18.5,
+    vehicle_type: '12-Tonne Agri Baling Truck',
+    transporter_name: 'NCR GreenLogix Logistics Fleet #4',
+    scheduled_pickup_date: '2026-09-24',
+    status: 'IN_TRANSIT',
+    distance_km: 88.4,
+    transport_cost_inr: 32800,
+    current_location: 'Eastern Peripheral Expressway (EPE) Interchange 7',
+    eta: 'Today 16:30 IST',
+    timeline: [
+      { time: '09:00 IST', stage: 'DISPATCHED', description: 'Truck dispatched from Murthal Logistics Hub' },
+      { time: '11:30 IST', stage: 'BALING_COMPLETE', description: 'Field residue baled and loaded at Gohana Farm' },
+      { time: '13:00 IST', stage: 'IN_TRANSIT', description: 'En route via EPE bypass around Delhi airshed' }
+    ],
+    created_at: '2026-09-21T07:00:00Z',
+    is_demo: true
+  }
+];
+
+export const FALLBACK_CIRCULAR_IMPACT: CircularImpactMetrics = {
+  residue_diverted_tons: 1284.0,
+  farmers_onboarded: 247,
+  active_buyers: 38,
+  successful_matches: 164,
+  material_processed_tons: 932.0,
+  estimated_burning_avoided_tons: 1020.0,
+  estimated_pm25_avoided_kg: 3927.0,
+  estimated_co2e_avoided_tons: 1489.2,
+  revenue_generated_for_farmers_inr: 2927520,
+  platform_gmv_inr: 4684032,
+  platform_revenue_inr: 163941,
+  average_transaction_value_inr: 17850,
+  emission_factors_used: {
+    pm25: '3.85 kg PM2.5 / ton residue burned (CPCB / IIT-Kanpur calibrated)',
+    co2e: '1.46 tons CO2e / ton residue diverted (IPCC Tier-1 open-burning guidelines)',
+    platform_take_rate: '3.5% transaction commission'
+  },
+  methodology_disclaimer:
+    'Estimates calculated via configurable emissions coefficients. Not a certified regulatory carbon audit until on-site weighbridge validation is verified.'
+};
+
+export const FALLBACK_INCIDENTS: IncidentRecord[] = [
+  {
+    id: 'INC-DL-2026-081',
+    station_id: 'anand_vihar',
+    station_name: 'Anand Vihar, Delhi',
+    severity: 'CRITICAL',
+    risk_score: 94.2,
+    aqi: 312,
+    pm25: 198.5,
+    trigger_reason: 'Compound Airshed Crisis: Severe PM2.5 spike + Stagnant Ventilation (<1100 m²/s) + Transboundary Stubble Plume',
+    weather_summary: {
+      wind_speed_ms: 1.4,
+      wind_direction_deg: 295,
+      temperature_c: 28.5,
+      boundary_layer_height_m: 420,
+      inversion_strength: 'STRONG'
+    },
+    contributing_sources: [
+      { source: 'Agricultural Stubble Burning (Punjab/Haryana Advection)', share_pct: 42, confidence: 'HIGH (FIRMS satellite verified)' },
+      { source: 'Local Vehicular Congestion (ISBT Anand Vihar)', share_pct: 28, confidence: 'HIGH' },
+      { source: 'Industrial & Ghazipur Landfill Flaring', share_pct: 18, confidence: 'MODERATE' },
+      { source: 'Construction & Road Dust Resuspension', share_pct: 12, confidence: 'MODERATE' }
+    ],
+    recommended_actions: [
+      'Deploy Anti-Smog water mist cannons along Vikas Marg arterial corridor',
+      'Enforce GRAP Stage-IV heavy commercial vehicle diversions at Anand Vihar border',
+      'Trigger AeroSense Circular intervention: Mobilize nearby residue off-takers in Meerut/Ghaziabad to absorb incoming stubble biomass',
+      'Issue high-priority community advisory for vulnerable respiratory groups'
+    ],
+    circular_opportunity: {
+      nearby_residue_listings_count: 24,
+      nearby_processors_count: 7,
+      available_straw_tonnage: 2840.0,
+      priority_districts: ['Meerut', 'Bulandshahr', 'Ghaziabad'],
+      action_cta: 'Route biomass from upwind farms directly to CBG digesters before burning'
+    },
+    status: 'RESPONSE_REQUIRED',
+    assigned_resources: [
+      {
+        id: 'RES-MIST-04',
+        resource_type: 'Anti-Smog Cannon Truck #04',
+        unit_code: 'DL-01-AS-882',
+        dispatched_at: '2026-09-21T18:15:00Z',
+        contact: 'Duty Officer Sharma (+91-98110-XXXXX)',
+        status: 'DEPLOYED'
+      },
+      {
+        id: 'RES-CIRC-01',
+        resource_type: 'Circular Stubble Logistics Taskforce',
+        unit_code: 'NCR-AGRI-01',
+        dispatched_at: '2026-09-21T18:30:00Z',
+        contact: 'FPO Regional Coordinator (+91-98712-XXXXX)',
+        status: 'MOBILIZED'
+      }
+    ],
+    timeline: [
+      {
+        id: 'TL-01',
+        timestamp: '2026-09-21T17:45:00Z',
+        actor: 'AeroSense Automated Risk Engine',
+        action: 'INCIDENT_DETECTED',
+        notes: 'Risk score breached critical threshold (94.2/100) triggered by PM2.5 crossing 190 µg/m³ under calm winds.'
+      },
+      {
+        id: 'TL-02',
+        timestamp: '2026-09-21T18:00:00Z',
+        actor: 'Incident Commander (Operator)',
+        action: 'ASSESSED',
+        notes: 'Verified CPCB telemetry and ISRO aerosol plume alignment. Escalated to RESPONSE_REQUIRED.'
+      },
+      {
+        id: 'TL-03',
+        timestamp: '2026-09-21T18:15:00Z',
+        actor: 'Dispatcher',
+        action: 'TEAM_ASSIGNED',
+        notes: 'Anti-smog cannon unit DL-01-AS-882 routed to Anand Vihar ISBT node.'
+      }
+    ],
+    created_at: '2026-09-21T17:45:00Z',
+    updated_at: '2026-09-21T18:30:00Z',
+    is_demo: true
+  },
+  {
+    id: 'INC-DL-2026-082',
+    station_id: 'mundka',
+    station_name: 'Mundka, West Delhi',
+    severity: 'HIGH',
+    risk_score: 78.5,
+    aqi: 268,
+    pm25: 142.0,
+    trigger_reason: 'Industrial emissions & scrap burning detected along Rohtak corridor',
+    weather_summary: { wind_speed_ms: 2.1, wind_direction_deg: 310, temperature_c: 29.0 },
+    contributing_sources: [
+      { source: 'Industrial Plastic/Rubber Waste Pyrolysis', share_pct: 52, confidence: 'HIGH' },
+      { source: 'Heavy Transit Traffic on NH-10', share_pct: 33, confidence: 'HIGH' },
+      { source: 'Regional Background', share_pct: 15, confidence: 'MODERATE' }
+    ],
+    recommended_actions: [
+      'Dispatch flying squad inspection to Mundka industrial cluster',
+      'Reroute non-destined freight to Western Peripheral Expressway'
+    ],
+    circular_opportunity: null,
+    status: 'TEAM_ASSIGNED',
+    assigned_resources: [],
+    timeline: [
+      {
+        id: 'TL-01',
+        timestamp: '2026-09-21T16:20:00Z',
+        actor: 'AeroSense ML Engine',
+        action: 'INCIDENT_DETECTED',
+        notes: 'Automated alert on localized VOC and PM10 spike.'
+      }
+    ],
+    created_at: '2026-09-21T16:20:00Z',
+    updated_at: '2026-09-21T16:45:00Z',
+    is_demo: true
+  }
+];
+

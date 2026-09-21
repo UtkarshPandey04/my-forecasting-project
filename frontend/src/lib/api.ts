@@ -19,7 +19,15 @@ import {
   TelemetrySourceItem,
   TelemetryMeshResponse,
   AtmosphericQueryRequest,
-  AtmosphericQueryResponse
+  AtmosphericQueryResponse,
+  ResidueListing,
+  BuyerRequirement,
+  MarketplaceMatch,
+  TransportOrder,
+  CircularImpactMetrics,
+  IncidentRecord,
+  IncidentStatus,
+  IncidentSeverity
 } from './types';
 
 import {
@@ -35,8 +43,15 @@ import {
   FALLBACK_MITIGATION_PARTNERS,
   generateFallbackForecast,
   generateFallbackBlendedForecast,
-  generateFallbackExplanation
+  generateFallbackExplanation,
+  FALLBACK_CIRCULAR_LISTINGS,
+  FALLBACK_CIRCULAR_BUYERS,
+  FALLBACK_CIRCULAR_MATCHES,
+  FALLBACK_TRANSPORT_ORDERS,
+  FALLBACK_CIRCULAR_IMPACT,
+  FALLBACK_INCIDENTS
 } from './fallbackData';
+
 import { calculateAqiFromPm25 } from './naqi';
 
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -373,7 +388,32 @@ async function fetchPostAPI<T>(endpoint: string, body: any): Promise<T> {
   }
 }
 
+async function fetchPatchAPI<T>(endpoint: string, body: any): Promise<T> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
+    const url = buildUrl(endpoint);
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      throw new Error(`API error: ${res.status} ${res.statusText}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.warn(`[AeroSense] PATCH request to ${endpoint} failed, applying local state update.`);
+    return body as unknown as T;
+  }
+}
+
 export interface ResponseActionRequest {
+
   action_type: string;
   stakeholder: string;
   station_id: string;
@@ -442,4 +482,100 @@ export const api = {
       station_id: stationId,
       horizon_hours: horizonHours ?? 24
     }),
+
+  // AeroSense Circular Economy Marketplace & Logistics
+  getCircularListings: async () => {
+    try {
+      return await fetchAPI<{ listings: ResidueListing[]; count: number; total_available_tons: number; districts_covered: string[] }>('/api/v1/circular/listings');
+    } catch {
+      return {
+        listings: FALLBACK_CIRCULAR_LISTINGS,
+        count: FALLBACK_CIRCULAR_LISTINGS.length,
+        total_available_tons: FALLBACK_CIRCULAR_LISTINGS.reduce((acc, l) => acc + l.quantity_tons, 0),
+        districts_covered: ['Meerut', 'Panipat', 'Karnal', 'Sonipat']
+      };
+    }
+  },
+  createCircularListing: (payload: Partial<ResidueListing>) =>
+    fetchPostAPI<ResidueListing>('/api/v1/circular/listings', payload),
+
+  getCircularBuyers: async () => {
+    try {
+      return await fetchAPI<{ buyers: BuyerRequirement[]; count: number; total_demand_tons: number; fulfilled_tons: number }>('/api/v1/circular/buyers');
+    } catch {
+      return {
+        buyers: FALLBACK_CIRCULAR_BUYERS,
+        count: FALLBACK_CIRCULAR_BUYERS.length,
+        total_demand_tons: FALLBACK_CIRCULAR_BUYERS.reduce((acc, b) => acc + b.required_quantity_tons, 0),
+        fulfilled_tons: FALLBACK_CIRCULAR_BUYERS.reduce((acc, b) => acc + b.fulfilled_tons, 0)
+      };
+    }
+  },
+  createBuyerRequirement: (payload: Partial<BuyerRequirement>) =>
+    fetchPostAPI<BuyerRequirement>('/api/v1/circular/requirements', payload),
+
+  getCircularMatches: async () => {
+    try {
+      return await fetchAPI<{ matches: MarketplaceMatch[]; count: number; top_matches: MarketplaceMatch[] }>('/api/v1/circular/matches');
+    } catch {
+      return {
+        matches: FALLBACK_CIRCULAR_MATCHES,
+        count: FALLBACK_CIRCULAR_MATCHES.length,
+        top_matches: FALLBACK_CIRCULAR_MATCHES
+      };
+    }
+  },
+  acceptMarketplaceMatch: (matchId: string) =>
+    fetchPostAPI<{ status: string; message: string; match: MarketplaceMatch; transport_order: TransportOrder }>(`/api/v1/circular/matches/${matchId}/accept`, {}),
+
+  getTransportOrders: async () => {
+    try {
+      return await fetchAPI<{ orders: TransportOrder[]; count: number; fleet_active_trucks: number; total_tonnage_in_transit: number }>('/api/v1/circular/transport');
+    } catch {
+      return {
+        orders: FALLBACK_TRANSPORT_ORDERS,
+        count: FALLBACK_TRANSPORT_ORDERS.length,
+        fleet_active_trucks: 8,
+        total_tonnage_in_transit: 18.5
+      };
+    }
+  },
+  updateTransportStatus: (orderId: string, newStatus: string) =>
+    fetchPostAPI<TransportOrder>(`/api/v1/circular/transport/${orderId}/status?new_status=${newStatus}`, {}),
+
+  getCircularImpact: async () => {
+    try {
+      return await fetchAPI<CircularImpactMetrics>('/api/v1/circular/impact');
+    } catch {
+      return FALLBACK_CIRCULAR_IMPACT;
+    }
+  },
+  simulateCircularScenario: (payload: {
+    residue_diverted_tons: number;
+    transport_distance_km: number;
+    conversion_pathway: string;
+    expected_price_per_ton: number;
+  }) => fetchPostAPI<any>('/api/v1/circular/simulate', payload),
+
+  // Incident Lifecycle Management
+  getIncidents: async () => {
+    try {
+      return await fetchAPI<{ incidents: IncidentRecord[]; count: number; active_count: number; critical_count: number }>('/api/v1/incidents');
+    } catch {
+      return {
+        incidents: FALLBACK_INCIDENTS,
+        count: FALLBACK_INCIDENTS.length,
+        active_count: FALLBACK_INCIDENTS.filter(i => i.status !== 'RESOLVED').length,
+        critical_count: FALLBACK_INCIDENTS.filter(i => i.severity === 'CRITICAL' && i.status !== 'RESOLVED').length
+      };
+    }
+  },
+  getIncident: (incidentId: string) => fetchAPI<IncidentRecord>(`/api/v1/incidents/${incidentId}`),
+  createIncident: (payload: Partial<IncidentRecord>) => fetchPostAPI<IncidentRecord>('/api/v1/incidents', payload),
+  updateIncidentStatus: (incidentId: string, status: IncidentStatus, notes?: string, actor?: string) =>
+    fetchPatchAPI<IncidentRecord>(`/api/v1/incidents/${incidentId}/status`, { status, notes, actor: actor || 'Operator' }),
+  assignIncidentResource: (incidentId: string, payload: { resource_type: string; unit_code: string; contact: string; notes?: string }) =>
+    fetchPostAPI<IncidentRecord>(`/api/v1/incidents/${incidentId}/assign-resource`, payload),
+  escalateIncident: (incidentId: string) => fetchPostAPI<IncidentRecord>(`/api/v1/incidents/${incidentId}/escalate`, {}),
 };
+

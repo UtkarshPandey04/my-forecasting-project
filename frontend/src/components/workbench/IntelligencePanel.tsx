@@ -25,7 +25,9 @@ import {
   Thermometer,
   Droplets,
   ArrowRight,
-  ChevronDown
+  ChevronDown,
+  Recycle,
+  Sparkles
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from 'recharts';
 
@@ -40,7 +42,9 @@ interface IntelligencePanelProps {
   aqiStandard?: 'epa' | 'cpcb';
   stations?: Station[];
   onSelectStation?: (stationId: string) => void;
+  onNavigateToCircular?: () => void;
 }
+
 
 const getAqiColor = (aqi: number | null): string => {
   if (aqi === null) return '#64748b';
@@ -115,8 +119,10 @@ export default function IntelligencePanel({
   loading = false,
   aqiStandard = 'epa',
   stations = [],
-  onSelectStation
+  onSelectStation,
+  onNavigateToCircular
 }: IntelligencePanelProps) {
+
   const [activeTab, setActiveTab] = useState<'atmospheric' | 'station'>('atmospheric');
 
   const regimeName = regime?.regime || 'NORMAL';
@@ -346,8 +352,46 @@ export default function IntelligencePanel({
       <div className="flex-1 overflow-y-auto p-4 space-y-4 min-w-0">
         {activeTab === 'atmospheric' ? (
           <>
+            {/* CIRCULAR PREVENTION OPPORTUNITY CARD (Module 10) */}
+            <div className="bg-gradient-to-br from-[#0c1b17] via-[#091515] to-[#071010] border border-emerald-500/40 rounded-xl p-3.5 space-y-2.5 shadow-lg shadow-emerald-500/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Recycle className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wide">
+                    Circular Prevention Opportunity
+                  </span>
+                </div>
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-bold">
+                  Residue Off-Take
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-snug">
+                Potential agricultural residue availability detected in nearby districts. Connect ready residue suppliers with regional CBG/biochar processors to prevent burning.
+              </p>
+              <div className="grid grid-cols-2 gap-2 bg-black/30 border border-white/5 rounded-lg p-2 text-[10px] font-mono">
+                <div>
+                  <span className="text-slate-400 block">Available Residue:</span>
+                  <span className="text-emerald-300 font-bold text-xs">2,840 Tonnes</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Nearby Processors:</span>
+                  <span className="text-sky-300 font-bold text-xs">7 Facilities</span>
+                </div>
+              </div>
+              {onNavigateToCircular && (
+                <button
+                  onClick={onNavigateToCircular}
+                  className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[11px] rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+                >
+                  <Recycle className="w-3.5 h-3.5" />
+                  Open Circular Marketplace
+                </button>
+              )}
+            </div>
+
             {/* 1. Atmospheric Regime Card */}
             <div className="bg-[#070b12] border border-white/[0.08] rounded-xl p-4 space-y-3">
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08]">

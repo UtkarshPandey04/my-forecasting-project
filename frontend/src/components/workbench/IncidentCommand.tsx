@@ -39,7 +39,8 @@ import {
   Globe,
   Sparkles,
   Sliders,
-  ChevronRight
+  ChevronRight,
+  Recycle
 } from 'lucide-react';
 import { Station, ActiveFirePoint, Observation, DisasterRiskResponse, DisasterHazard, TelemetrySourceItem } from '@/lib/types';
 import { api } from '@/lib/api';
@@ -65,7 +66,10 @@ interface IncidentCommandProps {
   selectedStationId?: string;
   onSelectStation?: (stationId: string) => void;
   aqiStandard?: 'epa' | 'cpcb';
+  onNavigateToCircular?: () => void;
+  onNavigateToWhatIf?: () => void;
 }
+
 
 const DEFAULT_TELEMETRY_SOURCES: TelemetrySourceItem[] = [
   {
@@ -567,10 +571,26 @@ export default function IncidentCommand({
   stations,
   selectedStationId,
   onSelectStation,
-  aqiStandard = 'epa'
+  aqiStandard = 'epa',
+  onNavigateToCircular,
+  onNavigateToWhatIf
 }: IncidentCommandProps) {
+  // Command Center Live States (Active Incidents & Anomalies)
+  const [anomalyState, setAnomalyState] = useState<{ detected: boolean; station: string; prev: number; current: number } | null>({
+    detected: true,
+    station: 'Anand Vihar',
+    prev: 150,
+    current: 950
+  });
+  const [anomalyActionTaken, setAnomalyActionTaken] = useState<string | null>(null);
+  const [activeIncidentsCount, setActiveIncidentsCount] = useState<number>(4);
+  const [highRiskZonesCount, setHighRiskZonesCount] = useState<number>(7);
+  const [incidentEscalated, setIncidentEscalated] = useState<boolean>(false);
+  const [incidentDocketOpen, setIncidentDocketOpen] = useState<boolean>(false);
+
   // State for alerts & response actions
   const [completedActions, setCompletedActions] = useState<Record<string, { timestamp: string }>>({});
+
   const [activeAlertModal, setActiveAlertModal] = useState<SmartAlertItem | null>(null);
   const [alertSuccessToast, setAlertSuccessToast] = useState<string | null>(null);
 
@@ -824,8 +844,258 @@ export default function IncidentCommand({
           </div>
         </header>
 
+        {/* ── MODULE 13 & 16: INCIDENT COMMAND CENTER & DATA HEALTH STRIP ── */}
+        <section className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+          {/* Active Incidents KPI Card */}
+          <div className="bg-[#0b1420] border border-rose-500/30 rounded-xl p-4 flex items-center justify-between shadow-sm">
+            <div>
+              <span className="text-[10px] uppercase font-mono tracking-wider text-rose-300 font-bold block">
+                Active Critical Incidents
+              </span>
+              <div className="text-2xl font-black text-rose-400 font-mono mt-0.5">
+                0{activeIncidentsCount}
+              </div>
+              <span className="text-[10px] text-slate-400">Response required across airshed</span>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+              <Shield className="w-5 h-5" />
+            </div>
+          </div>
+
+          {/* High-Risk Zones KPI Card */}
+          <div className="bg-[#0b1420] border border-amber-500/30 rounded-xl p-4 flex items-center justify-between shadow-sm">
+            <div>
+              <span className="text-[10px] uppercase font-mono tracking-wider text-amber-300 font-bold block">
+                Monitored High-Risk Zones
+              </span>
+              <div className="text-2xl font-black text-amber-400 font-mono mt-0.5">
+                0{highRiskZonesCount}
+              </div>
+              <span className="text-[10px] text-slate-400">PBL inversion & corridor hotspots</span>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+          </div>
+
+          {/* Data Health Telemetry Strip (Module 16) */}
+          <div className="lg:col-span-2 bg-[#0b1420] border border-cyan-500/20 rounded-xl p-4 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-mono tracking-wider text-cyan-300 font-bold flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                Live Airshed Data Health
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">Sync: 12s ago</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 font-mono text-[11px]">
+              <div className="bg-white/[0.02] border border-white/[0.05] rounded p-2 flex items-center justify-between">
+                <span className="text-slate-400">CPCB API:</span>
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> OK
+                </span>
+              </div>
+              <div className="bg-white/[0.02] border border-white/[0.05] rounded p-2 flex items-center justify-between">
+                <span className="text-slate-400">Weather:</span>
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" /> OK
+                </span>
+              </div>
+              <div className="bg-white/[0.02] border border-white/[0.05] rounded p-2 flex items-center justify-between">
+                <span className="text-slate-400">ML Model:</span>
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" /> ACTIVE
+                </span>
+              </div>
+              <div className="bg-white/[0.02] border border-white/[0.05] rounded p-2 flex items-center justify-between">
+                <span className="text-slate-400">Database:</span>
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" /> SYNCED
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── MODULE 17: SENSOR / DATA ANOMALY ALERT ── */}
+        {anomalyState && anomalyState.detected && !anomalyActionTaken && (
+          <div className="bg-amber-950/30 border border-amber-400/40 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fadeIn">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold text-amber-200 uppercase font-mono tracking-wider flex items-center gap-2">
+                  <span>Possible Sensor Data Anomaly Detected</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">Requires Review</span>
+                </div>
+                <div className="text-slate-300 mt-0.5 font-mono">
+                  {anomalyState.station}: Sudden non-physical PM2.5 spike from{' '}
+                  <b className="text-white">{anomalyState.prev} µg/m³</b> to{' '}
+                  <b className="text-amber-400">{anomalyState.current} µg/m³</b> within a single cycle.
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setAnomalyActionTaken('INSPECTED')}
+                className="px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] text-slate-200 rounded-lg font-mono text-[11px]"
+              >
+                Inspect Telemetry
+              </button>
+              <button
+                onClick={() => setAnomalyActionTaken('ACCEPTED')}
+                className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 rounded-lg font-mono text-[11px] font-bold"
+              >
+                Accept Telemetry
+              </button>
+              <button
+                onClick={() => setAnomalyActionTaken('FLAGGED')}
+                className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-300 rounded-lg font-mono text-[11px] font-bold"
+              >
+                Flag Sensor Error
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── MODULE 9, 10, 12, 14, 15: CRITICAL INCIDENT & CIRCULAR PREVENTION OPPORTUNITY ── */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Card 1: Critical Incident Docket */}
+          <div className="lg:col-span-2 bg-gradient-to-br from-[#0c1622] via-[#0a121c] to-[#080d14] border border-rose-500/30 rounded-xl p-5 space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/[0.08] pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-400/40 font-bold">
+                    CRITICAL INCIDENT #INC-DL-2026-081
+                  </span>
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    {selectedStationId === 'anand_vihar' || !selectedStationId ? 'Anand Vihar Airshed Node' : 'Active Airshed Zone'}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-400 mt-1 flex items-center gap-3 font-mono">
+                  <span>AQI: <b className="text-rose-400 text-sm">312</b></span>
+                  <span>PM2.5: <b className="text-rose-400 text-sm">198.5 µg/m³</b></span>
+                  <span>Compound Risk: <b className="text-cyan-400 text-sm">94.2/100</b></span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIncidentEscalated(true)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all ${
+                    incidentEscalated
+                      ? 'bg-rose-500 text-slate-950 font-black shadow-lg shadow-rose-500/30'
+                      : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-400/40'
+                  }`}
+                >
+                  {incidentEscalated ? 'ESCALATED TO GRAP-IV' : 'Escalate Incident'}
+                </button>
+                {onNavigateToWhatIf && (
+                  <button
+                    onClick={onNavigateToWhatIf}
+                    className="px-3 py-1.5 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-400/40 rounded-lg text-xs font-mono font-bold"
+                  >
+                    Simulate
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* AI Explanation ("Why this risk?") */}
+            <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-3.5 space-y-2">
+              <span className="text-[10px] uppercase font-mono tracking-wider text-cyan-400 font-bold flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                AI Physical Attribution: Why this risk?
+              </span>
+              <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                Severe particulate accumulation driven by <b className="text-rose-300">high PM2.5 + low surface wind (1.4 m/s)</b> under a nocturnal boundary layer ceiling of 420m.
+              </p>
+
+              {/* Contributing Sources Breakdown */}
+              <div className="pt-2 border-t border-white/[0.04]">
+                <span className="text-[10px] uppercase font-mono text-slate-400 block mb-1">
+                  Potential Contributing Sources (Configured Attribution):
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
+                  <div className="bg-white/[0.02] p-1.5 rounded">
+                    <span className="text-slate-400 block text-[9px]">Stubble Burning</span>
+                    <span className="text-amber-400 font-bold">~42% (Plume)</span>
+                  </div>
+                  <div className="bg-white/[0.02] p-1.5 rounded">
+                    <span className="text-slate-400 block text-[9px]">Vehicular Transit</span>
+                    <span className="text-white font-bold">~28% (ISBT)</span>
+                  </div>
+                  <div className="bg-white/[0.02] p-1.5 rounded">
+                    <span className="text-slate-400 block text-[9px]">Industrial Flaring</span>
+                    <span className="text-white font-bold">~18%</span>
+                  </div>
+                  <div className="bg-white/[0.02] p-1.5 rounded">
+                    <span className="text-slate-400 block text-[9px]">Dust Resuspension</span>
+                    <span className="text-slate-300 font-bold">~12%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Circular Prevention Opportunity Link */}
+          <div className="bg-gradient-to-br from-[#0c1c18] via-[#091515] to-[#071110] border border-emerald-500/40 rounded-xl p-5 flex flex-col justify-between shadow-lg shadow-emerald-500/10">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-bold flex items-center gap-1.5">
+                  <Recycle className="w-4 h-4 text-emerald-400" />
+                  Circular Prevention Opportunity
+                </span>
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-bold">
+                  Active Airshed Match
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-snug">
+                Potential agricultural residue availability detected in upwind districts (Meerut, Bulandshahr, Panipat).
+              </p>
+
+              <div className="space-y-2 bg-black/30 border border-emerald-500/20 rounded-lg p-3 text-xs font-mono">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Available Crop Residue:</span>
+                  <b className="text-emerald-300 font-bold">2,840 Tonnes</b>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Nearby Processors / Buyers:</span>
+                  <b className="text-sky-300 font-bold">7 Facilities</b>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Active Supply Listings:</span>
+                  <b className="text-white font-bold">24 Listings</b>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Est. Collection Distance:</span>
+                  <b className="text-amber-300 font-bold">~74 km radius</b>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-emerald-500/20 mt-3">
+              {onNavigateToCircular ? (
+                <button
+                  onClick={onNavigateToCircular}
+                  className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-lg transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 active:scale-95"
+                >
+                  <Recycle className="w-4 h-4" />
+                  Open Circular Marketplace
+                </button>
+              ) : (
+                <span className="text-[11px] text-emerald-300 font-mono text-center block">
+                  Marketplace Ready
+                </span>
+              )}
+            </div>
+          </div>
+        </section>
+
         {/* Dynamic Hazard Summary Banner */}
         {disasterRisk && (
+
           <section className="flex flex-wrap items-center justify-between gap-4 border border-cyan-500/20 bg-gradient-to-r from-[#0b1622] via-[#0f202e] to-[#0b1622] p-4 text-xs rounded-sm">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-rose-500/30 bg-rose-500/10 text-rose-300 font-mono text-base font-bold shadow-inner">

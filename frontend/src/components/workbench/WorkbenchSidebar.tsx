@@ -13,7 +13,8 @@ import {
   Siren,
   Megaphone,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Recycle
 } from 'lucide-react';
 
 export type WorkbenchView =
@@ -22,43 +23,48 @@ export type WorkbenchView =
   | 'map'
   | 'drivers'
   | 'what-if'
+  | 'circular'
+  | 'incident-command'
+  | 'response-console'
   | 'evaluation'
   | 'datasources'
-  | 'research'
-  | 'incident-command'
-  | 'response-console';
+  | 'research';
 
 interface WorkbenchSidebarProps {
   currentView: WorkbenchView;
   onSelectView: (view: WorkbenchView) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  className?: string;
 }
 
-const NAV_ITEMS: { id: WorkbenchView; label: string; icon: React.ElementType }[] = [
+export const NAV_ITEMS: { id: WorkbenchView; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'map', label: 'Airshed Map', icon: MapPin },
   { id: 'forecast', label: '72h Forecast', icon: TrendingUp },
   { id: 'drivers', label: 'Attribution Drivers', icon: Compass },
   { id: 'what-if', label: 'What-If Lab', icon: FlaskConical },
+  { id: 'circular', label: 'AeroSense Circular', icon: Recycle },
+  { id: 'incident-command', label: 'Incident Command', icon: Siren },
+  { id: 'response-console', label: 'Response Console', icon: Megaphone },
   { id: 'evaluation', label: 'Model Evaluation', icon: BarChart3 },
   { id: 'datasources', label: 'Data Sources', icon: Database },
   { id: 'research', label: 'Research Docs', icon: FileText },
-  { id: 'incident-command', label: 'Incident Command', icon: Siren },
-  { id: 'response-console', label: 'Response Console', icon: Megaphone },
 ];
+
 
 export default function WorkbenchSidebar({
   currentView,
   onSelectView,
   collapsed,
-  onToggleCollapse
+  onToggleCollapse,
+  className = ''
 }: WorkbenchSidebarProps) {
   return (
     <aside
       className={`bg-[#070b12] border-r border-white/[0.08] flex flex-col justify-between transition-all duration-300 z-20 shrink-0 select-none ${
         collapsed ? 'w-16' : 'w-[230px]'
-      }`}
+      } ${className}`}
     >
       {/* Top Nav Items */}
       <div className="p-2 space-y-1">

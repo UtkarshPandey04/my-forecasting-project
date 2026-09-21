@@ -339,6 +339,8 @@ def explain_forecast_drivers(
     pct_fire = round((fire_score / total_score) * 100.0)
     pct_urban = max(5, 100 - (pct_blh + pct_wind + pct_fire))
 
+    drivers: List[Dict[str, Any]] = []
+
     # 1. Boundary Layer Dynamic
     if blh < 350.0:
         drivers.append({

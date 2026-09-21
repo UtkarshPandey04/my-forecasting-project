@@ -484,3 +484,191 @@ export interface AtmosphericQueryResponse {
   timestamp: string;
 }
 
+// ── AeroSense Circular & Incident Lifecycle Types ──
+
+export type WasteCategory =
+  | 'agricultural_residue'
+  | 'organic_waste'
+  | 'construction_waste'
+  | 'used_cooking_oil'
+  | 'e_waste'
+  | 'industrial_waste';
+
+export type ConversionPathway =
+  | 'cbg_biogas'
+  | 'biochar'
+  | 'biomass_fuel'
+  | 'packaging_material'
+  | 'paper_pulp'
+  | 'mushroom_substrate';
+
+export type TransportStatus =
+  | 'LISTED'
+  | 'MATCHED'
+  | 'PICKUP_SCHEDULED'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'PROCESSED';
+
+export interface ResidueListing {
+  id: string;
+  farmer_name: string;
+  farmer_id?: string;
+  location: string;
+  district: string;
+  state: string;
+  crop_type: string;
+  residue_type: string;
+  quantity_tons: number;
+  harvest_date: string;
+  availability_date: string;
+  moisture_pct?: number;
+  preferred_collection_date?: string;
+  expected_price_per_ton: number;
+  category: WasteCategory;
+  recommended_pathways: ConversionPathway[];
+  created_at: string;
+  status: TransportStatus;
+  active_matches_count: number;
+  is_demo?: boolean;
+}
+
+export interface BuyerRequirement {
+  id: string;
+  company_name: string;
+  buyer_id?: string;
+  buyer_type: string;
+  location: string;
+  required_material: string;
+  required_quantity_tons: number;
+  max_distance_km: number;
+  min_price_per_ton: number;
+  max_price_per_ton: number;
+  pickup_available: boolean;
+  required_moisture_max_pct: number;
+  availability_period: string;
+  conversion_pathway: ConversionPathway;
+  created_at: string;
+  status: string;
+  fulfilled_tons: number;
+  is_demo?: boolean;
+}
+
+export interface MarketplaceMatch {
+  id: string;
+  listing_id: string;
+  requirement_id: string;
+  farmer_name: string;
+  farmer_location: string;
+  buyer_name: string;
+  buyer_location: string;
+  material: string;
+  matched_quantity_tons: number;
+  distance_km: number;
+  compatibility_score: number;
+  estimated_transport_cost_inr: number;
+  estimated_farmer_revenue_inr: number;
+  estimated_processor_value_inr: number;
+  platform_fee_inr: number;
+  avoided_burning_tons: number;
+  estimated_pm25_avoided_kg: number;
+  estimated_co2e_avoided_tons: number;
+  status: 'PROPOSED' | 'ACCEPTED' | 'REJECTED' | 'CONTRACTED';
+  created_at: string;
+  is_demo?: boolean;
+}
+
+export interface TransportOrder {
+  id: string;
+  match_id: string;
+  listing_id: string;
+  buyer_id: string;
+  pickup_location: string;
+  delivery_location: string;
+  quantity_tons: number;
+  vehicle_type: string;
+  transporter_name: string;
+  scheduled_pickup_date: string;
+  status: TransportStatus;
+  distance_km: number;
+  transport_cost_inr: number;
+  current_location: string;
+  eta: string;
+  timeline: { time: string; stage: string; description: string }[];
+  created_at: string;
+  is_demo?: boolean;
+}
+
+export interface CircularImpactMetrics {
+  residue_diverted_tons: number;
+  farmers_onboarded: number;
+  active_buyers: number;
+  successful_matches: number;
+  material_processed_tons: number;
+  estimated_burning_avoided_tons: number;
+  estimated_pm25_avoided_kg: number;
+  estimated_co2e_avoided_tons: number;
+  revenue_generated_for_farmers_inr: number;
+  platform_gmv_inr: number;
+  platform_revenue_inr: number;
+  average_transaction_value_inr: number;
+  emission_factors_used?: Record<string, string>;
+  methodology_disclaimer?: string;
+}
+
+export type IncidentStatus =
+  | 'DETECTED'
+  | 'ASSESSED'
+  | 'RESPONSE_REQUIRED'
+  | 'TEAM_ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'MONITORING'
+  | 'RESOLVED';
+
+export type IncidentSeverity = 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+
+export interface AssignedResource {
+  id: string;
+  resource_type: string;
+  unit_code: string;
+  dispatched_at: string;
+  contact: string;
+  status: string;
+}
+
+export interface IncidentTimelineEntry {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  notes?: string;
+}
+
+export interface IncidentRecord {
+  id: string;
+  station_id: string;
+  station_name: string;
+  severity: IncidentSeverity;
+  risk_score: number;
+  aqi: number;
+  pm25: number;
+  trigger_reason: string;
+  weather_summary?: Record<string, any>;
+  contributing_sources?: { source: string; share_pct: number; confidence: string }[];
+  recommended_actions?: string[];
+  circular_opportunity?: {
+    nearby_residue_listings_count: number;
+    nearby_processors_count: number;
+    available_straw_tonnage: number;
+    priority_districts: string[];
+    action_cta: string;
+  } | null;
+  status: IncidentStatus;
+  assigned_resources: AssignedResource[];
+  timeline: IncidentTimelineEntry[];
+  created_at: string;
+  updated_at: string;
+  is_demo?: boolean;
+}
+
+

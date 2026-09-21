@@ -29,7 +29,14 @@ import {
   TrendingDown,
   TrendingUp,
   Info,
-  CheckCircle2
+
+  CheckCircle2,
+  Recycle,
+  Leaf,
+  Truck,
+  Factory,
+  Coins,
+  ShieldAlert
 } from 'lucide-react';
 
 interface WorkbenchWhatIfProps {
@@ -43,6 +50,13 @@ export default function WorkbenchWhatIf({
   selectedStationId,
   aqiStandard = 'epa'
 }: WorkbenchWhatIfProps) {
+  const [simulatorMode, setSimulatorMode] = useState<'atmospheric' | 'circular'>('circular');
+  const [circularTons, setCircularTons] = useState<number>(100);
+  const [circularDistanceKm, setCircularDistanceKm] = useState<number>(50);
+  const [circularPathway, setCircularPathway] = useState<string>('cbg_biogas');
+  const [circularCrop, setCircularCrop] = useState<string>('Paddy Straw');
+  const [circularPricePerTon, setCircularPricePerTon] = useState<number>(2250);
+
   const [stationId, setStationId] = useState(selectedStationId);
   const [presets, setPresets] = useState<PresetScenario[]>([]);
   const [windPct, setWindPct] = useState<number>(0);
@@ -52,6 +66,7 @@ export default function WorkbenchWhatIf({
   const [scenarioData, setScenarioData] = useState<ScenarioResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const simulationRequestRef = useRef(0);
+
 
   useEffect(() => {
     async function loadPresets() {
@@ -132,8 +147,28 @@ export default function WorkbenchWhatIf({
     });
   }, [scenarioData?.points, aqiStandard]);
 
+  const PATHWAY_MULTIPLIERS: Record<string, { label: string; multiplier: number; outputUnit: string }> = {
+    cbg_biogas: { label: 'CBG / Biogas Generation', multiplier: 1.85, outputUnit: 'Nm³ Clean Bio-CNG' },
+    biochar: { label: 'Agri-Biochar Pyrolysis', multiplier: 2.10, outputUnit: 't Permanent Biochar' },
+    biomass_fuel: { label: 'Thermal Pellet Co-Firing', multiplier: 1.45, outputUnit: 't Dense Fuel Pellets' },
+    packaging_material: { label: 'Molded Pulp Packaging', multiplier: 2.40, outputUnit: 'Biodegradable Molded Cartons' },
+    paper_pulp: { label: 'Eco-Kraft Paper Pulp', multiplier: 1.60, outputUnit: 't High-Tensile Paper' },
+    mushroom_substrate: { label: 'Mushroom Bed Substrate', multiplier: 1.75, outputUnit: 'Sterilized Growing Beds' },
+  };
+
+  const currentPathwayMeta = PATHWAY_MULTIPLIERS[circularPathway] || PATHWAY_MULTIPLIERS.cbg_biogas;
+  const simFarmerRevenue = circularTons * circularPricePerTon;
+  const simTransportTrips = Math.ceil(circularTons / 10);
+  const simLogisticsCost = circularDistanceKm * 4.2 * circularTons;
+  const simProcessorValue = simFarmerRevenue * currentPathwayMeta.multiplier;
+  const simPlatformFee = simFarmerRevenue * 0.035;
+  const simAvoidedBurningTons = circularTons * 0.98;
+  const simPm25AvoidedKg = Math.round(simAvoidedBurningTons * 3.85 * 10) / 10;
+  const simCo2eAvoidedTons = Math.round(simAvoidedBurningTons * 1.46 * 10) / 10;
+  const simParticipatingFarmers = Math.max(1, Math.round(circularTons / 7.5));
+
   return (
-    <div className="flex-1 p-6 overflow-y-auto space-y-6 bg-[#06090e]">
+    <div className="flex-1 p-6 overflow-y-auto space-y-6 bg-[#06090e] select-none">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
         <div>
@@ -142,17 +177,17 @@ export default function WorkbenchWhatIf({
             <h2 className="text-base font-bold text-white">
               What-If Counterfactual Decision Lab
             </h2>
-            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold">
               SIMULATION
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Controlled physical perturbations of wind speed, rainfall scavenging, and biomass burning abatement
+            Simulate physical atmospheric perturbations and model circular waste-to-value pollution prevention.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">Station:</span>
+          <span className="text-xs text-slate-400 font-mono">Target Station:</span>
           <select
             value={stationId}
             onChange={(e) => setStationId(e.target.value)}
@@ -167,39 +202,247 @@ export default function WorkbenchWhatIf({
         </div>
       </div>
 
-      {/* Policy Presets */}
-      <div className="flex items-center gap-2 flex-wrap bg-[#0c111a] border border-white/[0.08] p-3 rounded-xl">
-        <span className="text-[11px] font-semibold uppercase font-mono text-slate-400 flex items-center gap-1.5 mr-2">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          Policy Presets:
-        </span>
-        {presets.map((p) => {
-          const isActive =
-            windPct === p.wind_speed_delta_pct &&
-            rainMm === p.rainfall_mm &&
-            firePct === p.fire_activity_delta_pct;
-          return (
-            <button
-              key={p.id}
-              onClick={() => applyPreset(p)}
-              className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
-                isActive
-                  ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 shadow-xs'
-                  : 'bg-white/[0.02] hover:bg-white/[0.05] text-slate-300 border-white/[0.08]'
-              }`}
-            >
-              {p.name}
-            </button>
-          );
-        })}
+      {/* Simulator Mode Switcher Tabs */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-1.5 bg-white/[0.03] border border-white/[0.08] rounded-xl">
         <button
-          onClick={resetBaseline}
-          className="text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/[0.04] ml-auto flex items-center gap-1.5"
+          onClick={() => setSimulatorMode('circular')}
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            simulatorMode === 'circular'
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
+          }`}
         >
-          <RotateCcw className="w-3.5 h-3.5" />
-          Reset Baseline
+          <Recycle className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="hidden sm:inline">Pollution Prevention Scenario Simulator (AeroSense Circular)</span>
+          <span className="sm:hidden">Circular Prevention Simulator</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">NEW</span>
+        </button>
+
+        <button
+          onClick={() => setSimulatorMode('atmospheric')}
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            simulatorMode === 'atmospheric'
+              ? 'bg-sky-500/20 text-sky-300 border border-sky-400/40 shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
+          }`}
+        >
+          <FlaskConical className="w-4 h-4 text-sky-400 shrink-0" />
+          <span className="hidden sm:inline">Atmospheric Physics Counterfactual Lab</span>
+          <span className="sm:hidden">Atmospheric Physics Lab</span>
         </button>
       </div>
+
+      {/* CIRCULAR SIMULATOR MODE */}
+      {simulatorMode === 'circular' ? (
+        <div className="space-y-6">
+          {/* Controls Grid */}
+          <div className="bg-[#0c111a] border border-white/[0.08] rounded-xl p-5 space-y-4">
+            <h3 className="text-xs font-bold uppercase font-mono tracking-wider text-emerald-400 flex items-center gap-2">
+              <Sliders className="w-4 h-4" />
+              Scenario Parameters: Agricultural Residue Diversion
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* Slider 1: Residue Quantity */}
+              <div className="space-y-2 bg-white/[0.02] border border-white/[0.04] p-3 rounded-lg">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-slate-400">Residue Diverted from Burning:</span>
+                  <span className="text-emerald-400 font-bold text-sm">{circularTons} Tonnes</span>
+                </div>
+                <input
+                  type="range"
+                  min="10"
+                  max="1000"
+                  step="10"
+                  value={circularTons}
+                  onChange={(e) => setCircularTons(parseInt(e.target.value))}
+                  className="w-full accent-emerald-400 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                  <span>10t (Small FPO)</span>
+                  <span>500t</span>
+                  <span>1,000t (Cluster)</span>
+                </div>
+              </div>
+
+              {/* Slider 2: Transport Distance */}
+              <div className="space-y-2 bg-white/[0.02] border border-white/[0.04] p-3 rounded-lg">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-slate-400">Transport Haul Distance:</span>
+                  <span className="text-sky-400 font-bold text-sm">{circularDistanceKm} km</span>
+                </div>
+                <input
+                  type="range"
+                  min="10"
+                  max="150"
+                  step="5"
+                  value={circularDistanceKm}
+                  onChange={(e) => setCircularDistanceKm(parseInt(e.target.value))}
+                  className="w-full accent-sky-400 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                  <span>10 km (Local)</span>
+                  <span>75 km</span>
+                  <span>150 km (Regional)</span>
+                </div>
+              </div>
+
+              {/* Dropdown: Pathway */}
+              <div className="space-y-2 bg-white/[0.02] border border-white/[0.04] p-3 rounded-lg">
+                <span className="text-slate-400 text-xs font-mono block">Downstream Conversion Pathway:</span>
+                <select
+                  value={circularPathway}
+                  onChange={(e) => setCircularPathway(e.target.value)}
+                  className="w-full bg-[#070c14] border border-white/[0.1] rounded-lg text-xs font-mono text-white p-2 focus:border-emerald-400 focus:outline-none"
+                >
+                  {Object.entries(PATHWAY_MULTIPLIERS).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v.label} (×{v.multiplier} margin)
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-500 font-mono block">
+                  Output: {currentPathwayMeta.outputUnit}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Side-by-Side Impact Comparison */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* WITHOUT INTERVENTION (Status Quo Burning) */}
+            <div className="bg-rose-950/20 border border-rose-500/30 rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-rose-500/20 pb-3">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-rose-400" />
+                  <h3 className="text-sm font-bold text-rose-300 uppercase tracking-wide font-mono">
+                    WITHOUT INTERVENTION (Status Quo)
+                  </h3>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold">
+                  Field Burning
+                </span>
+              </div>
+
+              <div className="space-y-3 font-mono text-xs">
+                <div className="bg-black/30 border border-white/5 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-400">Crop Residue Fate:</span>
+                  <span className="text-rose-400 font-bold">{circularTons} tonnes open-field burned</span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-400">Direct PM2.5 Released:</span>
+                  <span className="text-rose-300 font-bold text-sm">+{simPm25AvoidedKg.toLocaleString()} kg PM2.5</span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-400">Greenhouse Gases Emitted:</span>
+                  <span className="text-rose-300 font-bold">+{simCo2eAvoidedTons.toLocaleString()} tCO₂e</span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-400">Farmer Economic Return:</span>
+                  <span className="text-slate-400 font-bold">₹0 (Zero direct earnings)</span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-400">Regulatory Impact:</span>
+                  <span className="text-amber-400">Air Act fines & police FIR risk</span>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-rose-300/80 bg-rose-500/10 p-3 rounded-lg border border-rose-500/20 leading-relaxed">
+                Open-field burning of {circularTons}t of paddy straw releases acute toxic plumes into the nocturnal Delhi boundary layer, exacerbating GRAP Stage-IV emergency air quality conditions.
+              </div>
+            </div>
+
+            {/* WITH AEROSENSE CIRCULAR (Closed-Loop Solution) */}
+            <div className="bg-emerald-950/20 border border-emerald-500/40 rounded-xl p-5 space-y-4 shadow-[0_0_30px_rgba(16,185,129,0.1)]">
+              <div className="flex items-center justify-between border-b border-emerald-500/30 pb-3">
+                <div className="flex items-center gap-2">
+                  <Recycle className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-sm font-bold text-emerald-300 uppercase tracking-wide font-mono">
+                    WITH AEROSENSE CIRCULAR
+                  </h3>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-bold">
+                  Biomass Monetized
+                </span>
+              </div>
+
+              <div className="space-y-3 font-mono text-xs">
+                <div className="bg-black/30 border border-white/5 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-400">Residue Collected & Baled:</span>
+                  <span className="text-emerald-400 font-bold">{circularTons} tonnes processed</span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-400">Avoided PM2.5 Emissions:</span>
+                  <span className="text-emerald-300 font-bold text-sm">-{simPm25AvoidedKg.toLocaleString()} kg PM2.5 avoided</span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-400">Avoided Greenhouse Impact:</span>
+                  <span className="text-emerald-300 font-bold">-{simCo2eAvoidedTons.toLocaleString()} tCO₂e</span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-400">Farmer Revenue Created:</span>
+                  <span className="text-amber-400 font-bold text-sm">₹{simFarmerRevenue.toLocaleString()} ({simParticipatingFarmers} farmers)</span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-400">Processor Clean Value:</span>
+                  <span className="text-sky-300 font-bold">₹{simProcessorValue.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                <div className="bg-white/[0.02] border border-white/[0.05] p-2 rounded">
+                  <span className="text-slate-500 block">Logistics Trips</span>
+                  <span className="text-white font-bold">{simTransportTrips} truck dispatches (₹{simLogisticsCost.toLocaleString()})</span>
+                </div>
+                <div className="bg-white/[0.02] border border-white/[0.05] p-2 rounded">
+                  <span className="text-slate-500 block">Platform Commission</span>
+                  <span className="text-purple-300 font-bold">₹{simPlatformFee.toLocaleString()} (3.5%)</span>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-emerald-300/80 bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/20 leading-relaxed">
+                By mobilizing {simTransportTrips} trucks to transport residue to a {currentPathwayMeta.label} plant, the airshed avoids hazardous smog while generating real rural income.
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* EXISTING ATMOSPHERIC LAB MODE */
+        <div className="space-y-6">
+          {/* Policy Presets */}
+          <div className="flex items-center gap-2 flex-wrap bg-[#0c111a] border border-white/[0.08] p-3 rounded-xl">
+            <span className="text-[11px] font-semibold uppercase font-mono text-slate-400 flex items-center gap-1.5 mr-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              Policy Presets:
+            </span>
+            {presets.map((p) => {
+              const isActive =
+                windPct === p.wind_speed_delta_pct &&
+                rainMm === p.rainfall_mm &&
+                firePct === p.fire_activity_delta_pct;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => applyPreset(p)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                    isActive
+                      ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 shadow-xs'
+                      : 'bg-white/[0.02] hover:bg-white/[0.05] text-slate-300 border-white/[0.08]'
+                  }`}
+                >
+                  {p.name}
+                </button>
+              );
+            })}
+            <button
+              onClick={resetBaseline}
+              className="text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/[0.04] ml-auto flex items-center gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset Baseline
+            </button>
+          </div>
+
 
       {/* Simulation Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -489,6 +732,9 @@ export default function WorkbenchWhatIf({
           </div>
         </div>
       )}
+        </div>
+      )}
     </div>
   );
 }
+

@@ -17,8 +17,9 @@ import {
 } from '@/lib/types';
 import { calculateAqiFromPm25 } from '@/lib/naqi';
 
+import { LayoutDashboard, TrendingUp, Recycle, Siren, Menu, X } from 'lucide-react';
 import WorkbenchHeader from '@/components/workbench/WorkbenchHeader';
-import WorkbenchSidebar, { WorkbenchView } from '@/components/workbench/WorkbenchSidebar';
+import WorkbenchSidebar, { WorkbenchView, NAV_ITEMS } from '@/components/workbench/WorkbenchSidebar';
 import OverviewScreen from '@/components/workbench/OverviewScreen';
 import StationDetailDrawer from '@/components/workbench/StationDetailDrawer';
 import IntelligencePanel from '@/components/workbench/IntelligencePanel';
@@ -33,8 +34,11 @@ import AskAeroSenseModal from '@/components/workbench/AskAeroSenseModal';
 import DataSourcesModal from '@/components/workbench/DataSourcesModal';
 import IncidentCommand from '@/components/workbench/IncidentCommand';
 import ResponseConsole from '@/components/workbench/ResponseConsole';
+import CircularWorkspace from '@/components/workbench/CircularWorkspace';
+import DemoScenarioModal, { DEMO_SCENARIOS, DemoStep } from '@/components/workbench/DemoScenarioModal';
 
 // Dynamically import map to avoid SSR issues
+
 const DelhiMap = dynamic(() => import('@/components/map/DelhiMap'), {
   ssr: false,
   loading: () => (
@@ -52,11 +56,12 @@ export default function WorkbenchPage() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const v = params.get('view') as WorkbenchView | null;
-      if (v && ['overview', 'forecast', 'map', 'drivers', 'what-if', 'evaluation', 'datasources', 'research', 'incident-command', 'response-console'].includes(v)) {
+      if (v && ['overview', 'forecast', 'map', 'drivers', 'what-if', 'circular', 'evaluation', 'datasources', 'research', 'incident-command', 'response-console'].includes(v)) {
         setCurrentView(v);
       }
     }
   }, []);
+
 
   // Core Data States
   const [stations, setStations] = useState<Station[]>([]);
@@ -80,9 +85,38 @@ export default function WorkbenchPage() {
   const [stationDrawerOpen, setStationDrawerOpen] = useState<boolean>(false);
   const [askModalOpen, setAskModalOpen] = useState<boolean>(false);
   const [dataSourcesModalOpen, setDataSourcesModalOpen] = useState<boolean>(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingForecast, setLoadingForecast] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  const [demoModalOpen, setDemoModalOpen] = useState<boolean>(false);
+  const [currentDemoStepIndex, setCurrentDemoStepIndex] = useState<number>(0);
+
+  const handleApplyDemoScenario = (step: DemoStep) => {
+    if (step.simulatedState.stationId) {
+      setSelectedStationId(step.simulatedState.stationId);
+    }
+    setObservations((prev) => {
+      const targetId = step.simulatedState.stationId;
+      const existing = prev[targetId] || Object.values(prev)[0];
+      if (!existing) return prev;
+      return {
+        ...prev,
+        [targetId]: {
+          ...existing,
+          aqi: step.simulatedState.aqi,
+          pollutants: {
+            ...existing.pollutants,
+            pm25: step.simulatedState.pm25,
+            pm10: Math.round(step.simulatedState.pm25 * 1.6)
+          }
+        }
+      };
+    });
+    setCurrentView(step.targetView);
+  };
+
 
   const applyObservations = (obsRes: { observations: Observation[]; last_updated: string | null }) => {
     const obsMap: Record<string, Observation> = {};
@@ -233,13 +267,16 @@ export default function WorkbenchPage() {
         lastUpdated={lastUpdated}
         onOpenAskAgent={() => setAskModalOpen(true)}
         onOpenDataSources={() => setDataSourcesModalOpen(true)}
+        onOpenDemo={() => setDemoModalOpen(true)}
         aqiStandard={aqiStandard}
         onToggleAqiStandard={setAqiStandard}
+        onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
+        mobileMenuOpen={mobileMenuOpen}
       />
 
       {/* Main Body Layout: Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Collapsible Navigation Rail */}
+        {/* Collapsible Navigation Rail (Desktop) */}
         <WorkbenchSidebar
           currentView={currentView}
           onSelectView={(v) => {
@@ -251,15 +288,22 @@ export default function WorkbenchPage() {
           }}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className="hidden md:flex"
         />
 
         {/* View Router */}
-        {currentView === 'what-if' ? (
+        {currentView === 'circular' ? (
+          <CircularWorkspace
+            onNavigateToCommand={() => setCurrentView('incident-command')}
+            onNavigateToWhatIf={() => setCurrentView('what-if')}
+          />
+        ) : currentView === 'what-if' ? (
           <WorkbenchWhatIf
             stations={stations}
             selectedStationId={selectedStationId}
             aqiStandard={aqiStandard}
           />
+
         ) : currentView === 'incident-command' ? (
           <IncidentCommand
             activeFires={activeFires}
@@ -268,7 +312,10 @@ export default function WorkbenchPage() {
             selectedStationId={selectedStationId}
             onSelectStation={handleSelectStation}
             aqiStandard={aqiStandard}
+            onNavigateToCircular={() => setCurrentView('circular')}
+            onNavigateToWhatIf={() => setCurrentView('what-if')}
           />
+
         ) : currentView === 'response-console' ? (
           <ResponseConsole
             forecast={forecast}
@@ -393,6 +440,7 @@ export default function WorkbenchPage() {
                     aqiStandard={aqiStandard}
                     stations={stations}
                     onSelectStation={handleSelectStation}
+                    onNavigateToCircular={() => setCurrentView('circular')}
                   />
                 </div>
               </div>
@@ -465,6 +513,147 @@ export default function WorkbenchPage() {
         )}
       </div>
 
+      {/* Mobile Bottom Navigation Bar (md:hidden) */}
+      <nav className="md:hidden h-14 bg-[#070b12]/95 backdrop-blur-md border-t border-white/[0.08] px-2 flex items-center justify-around z-30 shrink-0 select-none">
+        <button
+          onClick={() => setCurrentView('overview')}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-lg text-[10px] font-medium transition-all ${
+            currentView === 'overview' || currentView === 'map' ? 'text-sky-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <LayoutDashboard className="w-4 h-4" />
+          <span>Overview</span>
+        </button>
+
+        <button
+          onClick={() => setCurrentView('forecast')}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-lg text-[10px] font-medium transition-all ${
+            currentView === 'forecast' ? 'text-sky-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4" />
+          <span>Forecast</span>
+        </button>
+
+        <button
+          onClick={() => setCurrentView('circular')}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-lg text-[10px] font-medium relative transition-all ${
+            currentView === 'circular' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <div className="relative">
+            <Recycle className="w-4 h-4" />
+            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          </div>
+          <span>Circular</span>
+        </button>
+
+        <button
+          onClick={() => setCurrentView('incident-command')}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-lg text-[10px] font-medium transition-all ${
+            currentView === 'incident-command' ? 'text-rose-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Siren className="w-4 h-4" />
+          <span>Command</span>
+        </button>
+
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-lg text-[10px] font-medium transition-all ${
+            mobileMenuOpen ? 'text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Menu className="w-4 h-4" />
+          <span>More</span>
+        </button>
+      </nav>
+
+      {/* Mobile Slide-Over Navigation Drawer (md:hidden) */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm md:hidden flex animate-fadeIn">
+          <div className="w-72 max-w-[85vw] h-full bg-[#070b12] border-r border-white/[0.1] flex flex-col justify-between p-4 shadow-2xl">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-md bg-sky-500/10 border border-sky-500/25 flex items-center justify-center p-1">
+                    <img src="/logo.png" alt="AeroSense" className="w-4 h-4 object-contain" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-white tracking-tight block">AeroSense Views</span>
+                    <span className="text-[10px] text-slate-400 font-mono">Coupled System</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white bg-white/[0.04] border border-white/[0.08]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-1 overflow-y-auto max-h-[62vh] pr-1">
+                {NAV_ITEMS.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = currentView === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        if (item.id === 'datasources') {
+                          setDataSourcesModalOpen(true);
+                        } else {
+                          setCurrentView(item.id);
+                        }
+                        setMobileMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                        isActive
+                          ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30 font-bold'
+                          : 'text-slate-400 hover:text-white hover:bg-white/[0.04] border border-transparent'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-sky-400' : 'text-slate-400'}`} />
+                      <span className="truncate">{item.label}</span>
+                      {item.id === 'circular' && (
+                        <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">
+                          NEW
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-white/[0.08] space-y-2">
+              <button
+                onClick={() => {
+                  setDemoModalOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full py-2 bg-gradient-to-r from-amber-500/20 to-cyan-500/20 border border-amber-400/40 rounded-xl text-amber-200 text-xs font-bold font-mono flex items-center justify-center gap-2 active:scale-95 transition-transform"
+              >
+                <span>🎬 Run Guided Demo (A–L)</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setDataSourcesModalOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full py-1.5 text-slate-400 hover:text-white text-xs font-medium text-center"
+              >
+                Inspect Data Sources (CPCB, IMD, WRF-Chem)
+              </button>
+            </div>
+          </div>
+
+          {/* Backdrop click area to dismiss */}
+          <div className="flex-1" onClick={() => setMobileMenuOpen(false)} />
+        </div>
+      )}
+
       {/* Modals */}
       <AskAeroSenseModal
         isOpen={askModalOpen}
@@ -481,6 +670,15 @@ export default function WorkbenchPage() {
         health={health}
         stationCount={stations.length}
       />
+
+      <DemoScenarioModal
+        isOpen={demoModalOpen}
+        onClose={() => setDemoModalOpen(false)}
+        currentStepIndex={currentDemoStepIndex}
+        onSelectStep={setCurrentDemoStepIndex}
+        onApplyScenario={handleApplyDemoScenario}
+      />
     </div>
   );
 }
+

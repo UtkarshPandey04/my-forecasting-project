@@ -154,3 +154,70 @@ class TestDisasterRiskEndpoint:
             assert "latency_ms" in s
             assert "endpoint_url" in s
             assert "raw_payload" in s
+
+
+class TestCircularEconomyEndpoint:
+    def test_get_listings(self):
+        response = client.get("/api/v1/circular/listings")
+        assert response.status_code == 200
+        data = response.json()
+        assert "listings" in data
+        assert len(data["listings"]) >= 1
+        assert "total_available_tons" in data
+
+    def test_get_buyers(self):
+        response = client.get("/api/v1/circular/buyers")
+        assert response.status_code == 200
+        data = response.json()
+        assert "buyers" in data
+        assert len(data["buyers"]) >= 1
+
+    def test_get_matches(self):
+        response = client.get("/api/v1/circular/matches")
+        assert response.status_code == 200
+        data = response.json()
+        assert "matches" in data
+
+    def test_get_impact(self):
+        response = client.get("/api/v1/circular/impact")
+        assert response.status_code == 200
+        data = response.json()
+        assert "residue_diverted_tons" in data
+        assert "revenue_generated_for_farmers_inr" in data
+        assert "estimated_pm25_avoided_kg" in data
+
+    def test_simulate(self):
+        response = client.post(
+            "/api/v1/circular/simulate",
+            json={
+                "residue_diverted_tons": 100.0,
+                "transport_distance_km": 50.0,
+                "conversion_pathway": "cbg_biogas",
+                "expected_price_per_ton": 2250.0,
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "without_intervention" in data
+        assert "with_aerosense_circular" in data
+        assert data["with_aerosense_circular"]["estimated_farmer_revenue_inr"] > 0
+
+
+class TestIncidentsEndpoint:
+    def test_list_incidents(self):
+        response = client.get("/api/v1/incidents")
+        assert response.status_code == 200
+        data = response.json()
+        assert "incidents" in data
+        assert len(data["incidents"]) >= 1
+
+    def test_update_status(self):
+        response = client.get("/api/v1/incidents")
+        first_id = response.json()["incidents"][0]["id"]
+        patch_res = client.patch(
+            f"/api/v1/incidents/{first_id}/status",
+            json={"status": "IN_PROGRESS", "notes": "Response units deployed on site"},
+        )
+        assert patch_res.status_code == 200
+        assert patch_res.json()["status"] == "IN_PROGRESS"
+

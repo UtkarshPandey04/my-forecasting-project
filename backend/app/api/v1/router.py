@@ -11,6 +11,8 @@ from app.api.v1.response import router as response_router
 from app.api.v1.mitigation import router as mitigation_router
 from app.api.v1.disaster import router as disaster_router
 from app.api.v1.intelligence import router as intelligence_router
+from app.api.v1.circular import router as circular_router
+from app.api.v1.incidents import router as incidents_router
 
 router = APIRouter()
 
@@ -24,6 +26,9 @@ router.include_router(wrfchem_router, tags=["wrfchem"])
 router.include_router(scenarios_router, tags=["scenarios"])
 router.include_router(response_router, tags=["response"])
 router.include_router(mitigation_router, tags=["mitigation"])
+router.include_router(circular_router, tags=["circular"])
+router.include_router(incidents_router, tags=["incidents"])
 router.include_router(disaster_router, tags=["disaster"])
 router.include_router(health_router, tags=["health"])
+
 

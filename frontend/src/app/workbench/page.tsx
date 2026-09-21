@@ -291,9 +291,22 @@ export default function WorkbenchPage() {
                 Detailed decomposition of physics-guided atmospheric drivers influencing Delhi NCR air quality
               </p>
             </div>
-            <ForecastExplainer explanation={explanation} loading={loadingForecast} />
-            <AtmosphericRegimeCard regime={regime} loading={loading} />
-            <DerivedIndicesGrid indices={indices} loading={loading} />
+            <ForecastExplainer
+              explanation={explanation}
+              loading={loadingForecast}
+              selectedStation={selectedStation}
+              selectedObservation={selectedObservation}
+              aqiStandard={aqiStandard}
+              indices={indices}
+            />
+            <AtmosphericRegimeCard
+              regime={regime}
+              loading={loading}
+              selectedStation={selectedStation}
+              selectedObservation={selectedObservation}
+              aqiStandard={aqiStandard}
+            />
+            <DerivedIndicesGrid indices={indices} loading={loading} aqiStandard={aqiStandard} />
           </div>
         ) : currentView === 'forecast' ? (
           <div className="flex-1 p-6 overflow-y-auto bg-[#06090e] space-y-6">
@@ -324,8 +337,17 @@ export default function WorkbenchPage() {
               blendedForecast={blendedForecast}
               loading={loadingForecast}
               aqiStandard={aqiStandard}
+              selectedStation={selectedStation}
+              selectedObservation={selectedObservation}
             />
-            <ForecastExplainer explanation={explanation} loading={loadingForecast} />
+            <ForecastExplainer
+              explanation={explanation}
+              loading={loadingForecast}
+              selectedStation={selectedStation}
+              selectedObservation={selectedObservation}
+              aqiStandard={aqiStandard}
+              indices={indices}
+            />
           </div>
         ) : (
           /* Default: Overview & Map-First Workspace */
@@ -403,6 +425,8 @@ export default function WorkbenchPage() {
                   blendedForecast={blendedForecast}
                   loading={loadingForecast}
                   aqiStandard={aqiStandard}
+                  selectedStation={selectedStation}
+                  selectedObservation={selectedObservation}
                   className="rounded-xl border border-white/[0.08] shadow-2xl h-[340px]"
                 />
               </div>
@@ -413,13 +437,26 @@ export default function WorkbenchPage() {
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
                     Physical Transport & Dispersion Drivers
                   </h3>
-                  <ForecastExplainer explanation={explanation} loading={loadingForecast} />
+                  <ForecastExplainer
+                    explanation={explanation}
+                    loading={loadingForecast}
+                    selectedStation={selectedStation}
+                    selectedObservation={selectedObservation}
+                    aqiStandard={aqiStandard}
+                    indices={indices}
+                  />
                 </div>
                 <div className="space-y-4">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
                     Boundary Layer Dynamics & Trapping Regime
                   </h3>
-                  <AtmosphericRegimeCard regime={regime} loading={loading} />
+                  <AtmosphericRegimeCard
+                    regime={regime}
+                    loading={loading}
+                    selectedStation={selectedStation}
+                    selectedObservation={selectedObservation}
+                    aqiStandard={aqiStandard}
+                  />
                   <DerivedIndicesGrid indices={indices} loading={loading} aqiStandard={aqiStandard} />
                 </div>
               </div>

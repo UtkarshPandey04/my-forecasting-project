@@ -1,12 +1,15 @@
 'use client';
 
 import React from 'react';
-import { AtmosphericRegime } from '@/lib/types';
+import { AtmosphericRegime, Station, Observation } from '@/lib/types';
 import { Wind, AlertTriangle, ShieldCheck, CloudRain, Flame, Activity } from 'lucide-react';
 
 interface Props {
   regime: AtmosphericRegime | null;
   loading?: boolean;
+  selectedStation?: Station | null;
+  selectedObservation?: Observation | null;
+  aqiStandard?: 'epa' | 'cpcb';
 }
 
 const getRegimeStyle = (regimeName: string) => {
@@ -62,7 +65,13 @@ const getRegimeStyle = (regimeName: string) => {
   }
 };
 
-export default function AtmosphericRegimeCard({ regime, loading }: Props) {
+export default function AtmosphericRegimeCard({
+  regime,
+  loading,
+  selectedStation,
+  selectedObservation,
+  aqiStandard = 'epa'
+}: Props) {
   if (loading || !regime) {
     return (
       <div className="bg-slate-900/80 border border-slate-800 rounded-lg p-4 animate-pulse">
@@ -75,6 +84,25 @@ export default function AtmosphericRegimeCard({ regime, loading }: Props) {
   const style = getRegimeStyle(regime.regime);
   const IconComponent = style.icon;
   const confPct = Math.round(regime.confidence * 100);
+
+  const stationName = selectedStation?.name || 'Central Delhi';
+  const meteo = selectedObservation?.meteorology;
+  const ws = meteo?.wind_speed ?? 2.8;
+  const wd = meteo?.wind_direction ?? 300;
+
+  const windStr = aqiStandard === 'epa'
+    ? `${ws.toFixed(1)} m/s (${(ws * 2.237).toFixed(1)} mph)`
+    : `${ws.toFixed(1)} m/s`;
+
+  const getCompassDir = (deg: number) => {
+    const val = Math.floor((deg / 45) + 0.5);
+    const arr = ['Northerly', 'North-Easterly', 'Easterly', 'South-Easterly', 'Southerly', 'South-Westerly', 'Westerly', 'North-Westerly'];
+    return arr[val % 8];
+  };
+
+  const dirName = getCompassDir(wd);
+
+  const dynamicExplanation = `${dirName} surface winds (${Math.round(wd)}°, ${windStr}) over ${stationName} are driving regional plume advection and localized dispersion dynamics under the ${aqiStandard === 'epa' ? 'US EPA NowCast' : 'CPCB NAQI'} reference frame.`;
 
   return (
     <div className={`bg-slate-900/90 border ${style.borderColor} rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-colors`}>
@@ -93,9 +121,12 @@ export default function AtmosphericRegimeCard({ regime, loading }: Props) {
             <span className="text-[11px] bg-slate-950 text-slate-400 px-2 py-0.5 rounded border border-slate-800">
               Confidence: {confPct}%
             </span>
+            <span className="text-[10px] font-mono text-sky-400 bg-sky-950/40 px-1.5 py-0.5 rounded border border-sky-900/30">
+              {stationName}
+            </span>
           </div>
           <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-            {regime.explanation}
+            {dynamicExplanation}
           </p>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ForecastResponse, BlendedForecastResponse } from '@/lib/types';
+import { ForecastResponse, BlendedForecastResponse, Station, Observation } from '@/lib/types';
 import { calculateAqiFromPm25, calculateEpaAqiFromPm25 } from '@/lib/naqi';
 import {
   ResponsiveContainer,
@@ -20,6 +20,8 @@ interface ForecastTimelineProps {
   loading?: boolean;
   className?: string;
   aqiStandard?: 'epa' | 'cpcb';
+  selectedStation?: Station | null;
+  selectedObservation?: Observation | null;
 }
 
 export default function ForecastTimeline({
@@ -27,7 +29,9 @@ export default function ForecastTimeline({
   blendedForecast,
   loading,
   className = '',
-  aqiStandard = 'epa'
+  aqiStandard = 'epa',
+  selectedStation,
+  selectedObservation
 }: ForecastTimelineProps) {
   const [activeTab, setActiveTab] = useState<'pm25' | 'o3' | 'aqi'>('pm25');
   const [showUncertainty, setShowUncertainty] = useState(true);
@@ -36,18 +40,34 @@ export default function ForecastTimeline({
   const rawPoints = blendedForecast?.points || forecast?.points || [];
 
   const chartPoints = useMemo(() => {
-    return rawPoints.map((p: any) => {
-      const pm25 = p.blended_pm25 ?? p.pm25_predicted ?? 60.0;
+    if (!rawPoints || rawPoints.length === 0) return [];
+    
+    // Live station anchor: offset the starting point to match the selected station's current PM2.5 telemetry
+    const livePm25 = selectedObservation?.pollutants?.pm25;
+    const firstPoint = rawPoints[0] as any;
+    const baseFirstPm = firstPoint?.blended_pm25 ?? firstPoint?.pm25_predicted ?? 60.0;
+    const offset = livePm25 != null ? (livePm25 - baseFirstPm) : 0;
+
+    return rawPoints.map((p: any, idx: number) => {
+      // Decay offset smoothly over 36 hours so forecast retains physical diurnal rhythm
+      const decay = Math.max(0, 1 - (idx / 36));
+      const rawPm = p.blended_pm25 ?? p.pm25_predicted ?? 60.0;
+      const pm25 = Math.max(12, Math.round((rawPm + offset * decay) * 10) / 10);
+      
       const epa = calculateEpaAqiFromPm25(pm25);
       const cpcb = calculateAqiFromPm25(pm25);
       return {
         ...p,
+        blended_pm25: pm25,
+        pm25_predicted: pm25,
         epa_aqi: epa.aqi,
         cpcb_aqi: cpcb.aqi,
-        active_aqi: aqiStandard === 'epa' ? epa.aqi : cpcb.aqi
+        active_aqi: aqiStandard === 'epa' ? epa.aqi : cpcb.aqi,
+        uncertainty_upper_pm25: Math.round(pm25 * 1.15),
+        uncertainty_lower_pm25: Math.round(pm25 * 0.85)
       };
     });
-  }, [rawPoints, aqiStandard]);
+  }, [rawPoints, aqiStandard, selectedObservation]);
 
   if (loading) {
     return (
@@ -161,11 +181,19 @@ export default function ForecastTimeline({
 
             {/* Reference Thresholds */}
             {activeTab === 'pm25' && (
-              <>
-                <ReferenceLine y={60} stroke="#eab308" strokeDasharray="3 3" />
-                <ReferenceLine y={120} stroke="#f97316" strokeDasharray="3 3" />
-                <ReferenceLine y={250} stroke="#ef4444" strokeDasharray="3 3" />
-              </>
+              aqiStandard === 'epa' ? (
+                <>
+                  <ReferenceLine y={35.4} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'EPA USG (35.4)', fill: '#f97316', fontSize: 9 }} />
+                  <ReferenceLine y={55.4} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'EPA Unhealthy (55.4)', fill: '#ef4444', fontSize: 9 }} />
+                  <ReferenceLine y={150.4} stroke="#a855f7" strokeDasharray="3 3" label={{ value: 'EPA V.Unhealthy (150.4)', fill: '#a855f7', fontSize: 9 }} />
+                </>
+              ) : (
+                <>
+                  <ReferenceLine y={60} stroke="#eab308" strokeDasharray="3 3" label={{ value: 'CPCB Moderate (60)', fill: '#eab308', fontSize: 9 }} />
+                  <ReferenceLine y={120} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'CPCB Poor (120)', fill: '#f97316', fontSize: 9 }} />
+                  <ReferenceLine y={250} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'CPCB Severe (250)', fill: '#ef4444', fontSize: 9 }} />
+                </>
+              )
             )}
 
             {activeTab === 'aqi' && aqiStandard === 'epa' && (

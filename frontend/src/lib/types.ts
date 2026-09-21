@@ -39,7 +39,11 @@ export interface Observation {
   prominent_pollutant: string | null;
   source: string;
   mode: string;
+  epa_aqi?: number | null;
+  epa_category?: string | null;
+  epa_color?: string | null;
 }
+
 
 export interface ForecastPoint {
   hour_offset: number;

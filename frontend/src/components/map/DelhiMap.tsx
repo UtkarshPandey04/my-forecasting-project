@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import Map, { Marker, NavigationControl, Popup, Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Station, Observation, ActiveFirePoint, TransportCorridor } from '@/lib/types';
+import { calculateEpaAqiFromPm25 } from '@/lib/naqi';
 import { clsx } from 'clsx';
 import { Flame, Wind, Compass, AlertCircle, Layers, Eye, EyeOff } from 'lucide-react';
 
@@ -90,14 +91,20 @@ const BASEMAP_STYLES = {
 
 export type MapMetric = 'aqi' | 'pm25' | 'temp' | 'wind' | 'humidity';
 
-const getMetricValueAndColor = (station: StationWithObs, metric: MapMetric) => {
+const getMetricValueAndColor = (station: StationWithObs, metric: MapMetric, aqiStandard: 'cpcb' | 'epa' = 'epa') => {
   const obs = station.observation;
   if (!obs) return { displayValue: '--', color: '#64748b' };
 
   if (metric === 'aqi') {
+    if (aqiStandard === 'epa') {
+      const epaAqi = obs.epa_aqi ?? (obs.pollutants?.pm25 != null ? calculateEpaAqiFromPm25(obs.pollutants.pm25).aqi : obs.aqi);
+      const epaColor = obs.epa_color ?? (obs.pollutants?.pm25 != null ? calculateEpaAqiFromPm25(obs.pollutants.pm25).color : getAqiColor(epaAqi));
+      return { displayValue: epaAqi !== null && epaAqi !== undefined ? epaAqi : '--', color: epaColor };
+    }
     const aqi = obs.aqi ?? null;
     return { displayValue: aqi !== null ? aqi : '--', color: getAqiColor(aqi) };
   }
+
   if (metric === 'pm25') {
     const pm25 = obs.pollutants?.pm25 ?? null;
     let color = '#64748b';
@@ -164,6 +171,7 @@ export default function DelhiMap({
   const [firePopup, setFirePopup] = useState<ActiveFirePoint | null>(null);
   const [mapStyleKey, setMapStyleKey] = useState<'dark' | 'satellite' | 'topo'>('dark');
   const [selectedMetric, setSelectedMetric] = useState<MapMetric>((activeMetric as MapMetric) || 'aqi');
+  const [aqiStandard, setAqiStandard] = useState<'epa' | 'cpcb'>('epa');
 
   // Layer Toggles
   const [showFires, setShowFires] = useState(true);
@@ -173,10 +181,11 @@ export default function DelhiMap({
 
   // Station Markers
   const stationMarkers = useMemo(() => stations.map((station) => {
-    const { displayValue, color } = getMetricValueAndColor(station, selectedMetric);
+    const { displayValue, color } = getMetricValueAndColor(station, selectedMetric, aqiStandard);
     const aqi = station.observation?.aqi ?? null;
     const isSelected = station.id === selectedStationId;
     const isSevere = aqi !== null && aqi > 300;
+
 
     return (
       <Marker
@@ -208,7 +217,7 @@ export default function DelhiMap({
         </div>
       </Marker>
     );
-  }), [stations, selectedStationId, onSelectStation, selectedMetric]);
+  }), [stations, selectedStationId, onSelectStation, selectedMetric, aqiStandard]);
 
   // Active Fire Markers
   const fireMarkers = useMemo(() => {
@@ -219,23 +228,22 @@ export default function DelhiMap({
         longitude={fire.longitude}
         latitude={fire.latitude}
         anchor="center"
-        onClick={(e: any) => {
-          e.originalEvent.stopPropagation();
-          setFirePopup(fire);
-        }}
       >
         <div
-          className="cursor-pointer group flex items-center justify-center p-1 rounded-full bg-orange-600/30 border border-orange-500/80 hover:scale-125 transition-transform"
-          title={`Active Fire: ${fire.frp} MW`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setFirePopup(fire);
+          }}
+          className="w-3.5 h-3.5 rounded-full bg-orange-500/80 border border-amber-300 flex items-center justify-center animate-pulse cursor-pointer shadow-[0_0_8px_rgba(249,115,22,0.8)]"
+          title={`FRP: ${fire.frp} MW`}
         >
-          <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping absolute opacity-60" />
-          <div className="w-2 h-2 rounded-full bg-orange-500 relative" />
+          <div className="w-1.5 h-1.5 rounded-full bg-yellow-200" />
         </div>
       </Marker>
     ));
-  }, [activeFires, showFires]);
+  }, [showFires, activeFires]);
 
-  // Regional Wind Streamline Vectors
+  // Wind Vector Grid Overlay
   const windMarkers = useMemo(() => {
     if (!showWind) return null;
     const gridPoints = [
@@ -303,6 +311,35 @@ export default function DelhiMap({
             </button>
           ))}
         </div>
+
+        {/* Standard Switcher (EPA vs CPCB) */}
+        {selectedMetric === 'aqi' && (
+          <div className="flex items-center gap-0.5 bg-black/60 p-0.5 rounded border border-rose-500/30 font-mono text-[10px] mr-1">
+            <span className="text-[9px] text-rose-400 uppercase px-1 font-semibold">Scale:</span>
+            <button
+              onClick={() => setAqiStandard('epa')}
+              className={`px-1.5 py-0.5 rounded uppercase font-bold tracking-wide transition-all ${
+                aqiStandard === 'epa'
+                  ? 'bg-rose-500/40 text-rose-100 border border-rose-400 shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="US EPA Scale (matches aqicn.org & aqi.in)"
+            >
+              US EPA (aqicn)
+            </button>
+            <button
+              onClick={() => setAqiStandard('cpcb')}
+              className={`px-1.5 py-0.5 rounded uppercase font-bold tracking-wide transition-all ${
+                aqiStandard === 'cpcb'
+                  ? 'bg-emerald-500/40 text-emerald-100 border border-emerald-400 shadow-xs'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Indian National Air Quality Index (CPCB)"
+            >
+              CPCB NAQI
+            </button>
+          </div>
+        )}
 
         {/* Basemap Switcher */}
         <div className="flex items-center gap-0.5 bg-black/40 p-0.5 rounded border border-white/[0.1] font-mono text-[10px] mr-1">
@@ -373,16 +410,26 @@ export default function DelhiMap({
       {/* Bottom Left Floating Dynamic Legend */}
       <div className="absolute bottom-3 left-3 z-10 bg-[#070b12]/95 border border-white/[0.1] px-3 py-1.5 rounded-lg shadow-xl backdrop-blur-md text-[10px] font-mono text-slate-300 flex items-center gap-3">
         <span className="text-cyan-400 uppercase tracking-wider font-semibold">
-          {selectedMetric === 'aqi' ? 'NAQI Scale:' : selectedMetric === 'pm25' ? 'PM2.5 (µg):' : selectedMetric === 'temp' ? 'Temp (°C):' : selectedMetric === 'wind' ? 'Wind (m/s):' : 'Humidity (%):'}
+          {selectedMetric === 'aqi' ? (aqiStandard === 'epa' ? 'US EPA Scale (aqicn):' : 'CPCB NAQI Scale:') : selectedMetric === 'pm25' ? 'PM2.5 (µg):' : selectedMetric === 'temp' ? 'Temp (°C):' : selectedMetric === 'wind' ? 'Wind (m/s):' : 'Humidity (%):'}
         </span>
-        {selectedMetric === 'aqi' && (
+        {selectedMetric === 'aqi' && aqiStandard === 'epa' && (
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10b981]" /> 0-50</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#84cc16]" /> 51-100</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#eab308]" /> 101-200</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#f97316]" /> 201-300</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ef4444]" /> 301-400</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#7c3aed]" /> 401+</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#00e400]" /> 0-50 Good</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ffff00]" /> 51-100 Mod</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ff7e00]" /> 101-150 Sensitive</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#cc0033]" /> 151-200 Unhealthy</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#8f3f97]" /> 201-300 Very Unhealthy</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#7e0023]" /> 301+ Haz</span>
+          </div>
+        )}
+        {selectedMetric === 'aqi' && aqiStandard === 'cpcb' && (
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10b981]" /> 0-50 Good</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#84cc16]" /> 51-100 Satisfactory</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#eab308]" /> 101-200 Moderate</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#f97316]" /> 201-300 Poor</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ef4444]" /> 301-400 Very Poor</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#7c3aed]" /> 401+ Severe</span>
           </div>
         )}
         {selectedMetric === 'pm25' && (

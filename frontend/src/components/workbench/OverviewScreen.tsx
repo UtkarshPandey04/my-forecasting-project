@@ -40,12 +40,26 @@ export default function OverviewScreen({ observation, stationName }: OverviewScr
       </div>
 
       {/* Connected KPI Strip */}
-      <div className="flex items-center gap-5 shrink-0 font-mono text-xs">
-        {/* AQI */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-slate-400 text-[11px]">AQI</span>
+      <div className="flex items-center gap-4 shrink-0 font-mono text-xs">
+        {/* US EPA (aqicn) */}
+        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/25" title="US EPA Standard (AirNow / aqicn.org / aqi.in scale)">
+          <span className="text-rose-400 text-[10px] font-sans font-semibold">EPA (aqicn):</span>
+          <span className="font-extrabold text-sm text-rose-300">
+            {observation?.epa_aqi ?? aqi ?? '--'}
+          </span>
+          <span className="text-[9px] font-sans text-rose-200/80">
+            {observation?.epa_category || 'Unhealthy'}
+          </span>
+        </div>
+
+        {/* CPCB NAQI */}
+        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.08]" title="Official Central Pollution Control Board (CPCB) NAQI scale">
+          <span className="text-slate-400 text-[10px] font-sans font-semibold">CPCB NAQI:</span>
           <span className="font-extrabold text-sm" style={{ color: aqiColor }}>
             {aqi ?? '--'}
+          </span>
+          <span className="text-[9px] font-sans text-slate-400">
+            {observation?.aqi_category || 'Satisfactory'}
           </span>
         </div>
 

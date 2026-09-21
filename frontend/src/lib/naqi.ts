@@ -168,3 +168,34 @@ export function calculateNaqi(measurements: Record<string, number | null | undef
     sub_indices: subIndices,
   };
 }
+
+/**
+ * US EPA (AirNow / aqicn.org / aqi.in default) AQI calculation standard
+ */
+export const EPA_PM25_BREAKPOINTS = [
+  { cLo: 0.0, cHi: 12.0, iLo: 0, iHi: 50, cat: 'Good', color: '#00e400' },
+  { cLo: 12.1, cHi: 35.4, iLo: 51, iHi: 100, cat: 'Moderate', color: '#ffff00' },
+  { cLo: 35.5, cHi: 55.4, iLo: 101, iHi: 150, cat: 'Unhealthy for Sensitive Groups', color: '#ff7e00' },
+  { cLo: 55.5, cHi: 150.4, iLo: 151, iHi: 200, cat: 'Unhealthy', color: '#cc0033' },
+  { cLo: 150.5, cHi: 250.4, iLo: 201, iHi: 300, cat: 'Very Unhealthy', color: '#8f3f97' },
+  { cLo: 250.5, cHi: 500.4, iLo: 301, iHi: 500, cat: 'Hazardous', color: '#7e0023' },
+];
+
+export function calculateEpaAqiFromPm25(pm25: number): {
+  aqi: number;
+  category: string;
+  color: string;
+} {
+  const c = Math.round(pm25 * 10) / 10;
+  for (const bp of EPA_PM25_BREAKPOINTS) {
+    if (c >= bp.cLo && c <= bp.cHi) {
+      const aqi = Math.round(((bp.iHi - bp.iLo) / (bp.cHi - bp.cLo)) * (c - bp.cLo) + bp.iLo);
+      return { aqi, category: bp.cat, color: bp.color };
+    }
+  }
+  if (c > 500.4) {
+    return { aqi: 500, category: 'Hazardous', color: '#7e0023' };
+  }
+  return { aqi: 0, category: 'Good', color: '#00e400' };
+}
+

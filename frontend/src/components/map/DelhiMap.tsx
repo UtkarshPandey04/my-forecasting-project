@@ -557,7 +557,7 @@ export default function DelhiMap({
 
                     {/* Scale Breakdown & Pollutants mini grid */}
                     <div className="grid grid-cols-2 gap-1 text-[10px] font-mono mb-2 bg-black/40 p-1.5 rounded border border-white/5">
-                      <div>EPA (aqicn): <strong className={aqiStandard === 'epa' ? 'text-rose-300 font-bold' : 'text-slate-400'}>{hoveredStation.observation?.epa_aqi ?? epaRes.aqi}</strong></div>
+                      <div>EPA (aqicn): <strong className={aqiStandard === 'epa' ? 'text-rose-300 font-bold' : 'text-slate-400'}>{hoveredStation.observation?.epa_aqi ?? hoveredStation.observation?.live_epa_aqi ?? epaRes.aqi}</strong></div>
                       <div>CPCB NAQI: <strong className={aqiStandard === 'cpcb' ? 'text-emerald-300 font-bold' : 'text-slate-400'}>{cpcbAqi}</strong></div>
                       <div>PM2.5: <strong className="text-cyan-300">{pm25.toFixed(1)} µg</strong></div>
                       <div>PM10: <strong className="text-slate-200">{hoveredStation.observation?.pollutants?.pm10?.toFixed(0) ?? '--'} µg</strong></div>
@@ -579,6 +579,14 @@ export default function DelhiMap({
                   <div>🧭 Bearing: <strong className="text-slate-300">{hoveredStation.observation?.meteorology?.wind_direction ? `${hoveredStation.observation.meteorology.wind_direction.toFixed(0)}°` : '305°'}</strong></div>
                 </div>
               </div>
+
+              {/* Live AQICN Match Indicator */}
+              {hoveredStation.observation?.aqicn_url && (
+                <div className="mt-2 pt-1.5 border-t border-white/5 flex items-center justify-between text-[9px] font-mono text-emerald-400">
+                  <span>✓ Synced with aqicn.org</span>
+                  <span className="text-slate-400">{hoveredStation.observation?.aqicn_synced_time || 'Live'}</span>
+                </div>
+              )}
             </div>
           </Popup>
         )}

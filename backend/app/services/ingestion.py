@@ -61,19 +61,18 @@ class IngestionService:
     def __init__(self, db: Session, settings: Settings):
         self.db = db
         self.settings = settings
+        self.waqi_provider = _shared_waqi(getattr(settings, "WAQI_API_TOKEN", "demo"))
         if settings.APP_MODE == "DEMO":
             self._demo = DemoDataProvider()
             self.aq_provider = self._demo
             self.weather_provider = self._demo
             self.openmeteo_aq = None
             self.dpcc_provider = None
-            self.waqi_provider = None
         else:
             self.aq_provider = _shared_cpcb(api_key=settings.CPCB_API_KEY)
             self.weather_provider = _shared_imd()
             self.openmeteo_aq = _shared_openmeteo_aq()
             self.dpcc_provider = _shared_dpcc()
-            self.waqi_provider = _shared_waqi(getattr(settings, "WAQI_API_TOKEN", "demo"))
             self._demo = None
 
     def _build_observation(self, station: Station, merged: Dict) -> Dict:
@@ -83,6 +82,7 @@ class IngestionService:
         }
         aqi_info = calculate_naqi(measurements)
         timestamp = merged.get("timestamp", datetime.now())
+        clean_id = station.id.lower().replace("_", "-")
         return {
             "station_id": station.id,
             "station_name": station.name,
@@ -100,6 +100,10 @@ class IngestionService:
             "prominent_pollutant": aqi_info.get("prominent_pollutant"),
             "source": merged.get("source", "UNKNOWN"),
             "mode": self.settings.APP_MODE,
+            "live_epa_aqi": merged.get("live_aqi"),
+            "aqicn_url": merged.get("aqicn_url") or f"https://aqicn.org/city/delhi/{clean_id}/",
+            "aqicn_match_station": merged.get("aqicn_match_station") or f"{station.name}, Delhi",
+            "aqicn_synced_time": merged.get("aqicn_synced_time") or datetime.now().strftime("%I:%M %p"),
         }
 
     async def get_current_observations(
@@ -126,19 +130,31 @@ class IngestionService:
             async with semaphore:
                 aq_data = None
 
-                if self.settings.APP_MODE == "LIVE":
-                    # 1. Primary Source: Direct DPCC CAAQMS live ground station monitor (continuous 5-minute telemetry)
-                    if self.dpcc_provider:
-                        try:
-                            dpcc_data = await self.dpcc_provider.fetch_current(
-                                station.id, station.latitude, station.longitude
-                            )
-                            if dpcc_data and dpcc_data.get("pm25") is not None:
-                                aq_data = dpcc_data
-                        except Exception:
-                            pass
+                # Check WAQI / aqicn.org live feed first for exact ground synchronization
+                if self.waqi_provider:
+                    try:
+                        waqi_data = await self.waqi_provider.fetch_current(
+                            station.id, station.latitude, station.longitude
+                        )
+                        if waqi_data and waqi_data.get("pm25") is not None:
+                            aq_data = waqi_data
+                    except Exception:
+                        pass
 
-                    # 2. Secondary Source: CPCB CAAQMS official portal
+                if self.settings.APP_MODE == "LIVE":
+                    # 1. DPCC CAAQMS live ground station monitor
+                    if not aq_data or aq_data.get("pm25") is None:
+                        if self.dpcc_provider:
+                            try:
+                                dpcc_data = await self.dpcc_provider.fetch_current(
+                                    station.id, station.latitude, station.longitude
+                                )
+                                if dpcc_data and dpcc_data.get("pm25") is not None:
+                                    aq_data = dpcc_data
+                            except Exception:
+                                pass
+
+                    # 2. CPCB CAAQMS official portal
                     if not aq_data or aq_data.get("pm25") is None:
                         try:
                             cpcb_data = await self.aq_provider.fetch_current(
@@ -148,18 +164,6 @@ class IngestionService:
                                 aq_data = cpcb_data
                         except Exception:
                             pass
-
-                    # 3. Tertiary Source: WAQI Live Ground Network
-                    if not aq_data or aq_data.get("pm25") is None:
-                        if self.waqi_provider:
-                            try:
-                                waqi_data = await self.waqi_provider.fetch_current(
-                                    station.id, station.latitude, station.longitude
-                                )
-                                if waqi_data and waqi_data.get("pm25") is not None:
-                                    aq_data = waqi_data
-                            except Exception:
-                                pass
 
                     # 4. Quaternary Source: Open-Meteo Air Quality / CAMS model
                     if not aq_data or aq_data.get("pm25") is None:

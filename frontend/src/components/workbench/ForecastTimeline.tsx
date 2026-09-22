@@ -45,13 +45,13 @@ export default function ForecastTimeline({
     // Live station anchor: offset the starting point to match the selected station's current PM2.5 telemetry
     const livePm25 = selectedObservation?.pollutants?.pm25;
     const firstPoint = rawPoints[0] as any;
-    const baseFirstPm = firstPoint?.blended_pm25 ?? firstPoint?.pm25_predicted ?? 60.0;
+    const baseFirstPm = firstPoint?.blended_pm25 ?? firstPoint?.pm25_predicted ?? (livePm25 ?? 55.0);
     const offset = livePm25 != null ? (livePm25 - baseFirstPm) : 0;
 
     return rawPoints.map((p: any, idx: number) => {
       // Decay offset smoothly over 36 hours so forecast retains physical diurnal rhythm
       const decay = Math.max(0, 1 - (idx / 36));
-      const rawPm = p.blended_pm25 ?? p.pm25_predicted ?? 60.0;
+      const rawPm = p.blended_pm25 ?? p.pm25_predicted ?? (livePm25 ?? 55.0);
       const pm25 = Math.max(12, Math.round((rawPm + offset * decay) * 10) / 10);
       
       const epa = calculateEpaAqiFromPm25(pm25);

@@ -42,6 +42,10 @@ export interface Observation {
   epa_aqi?: number | null;
   epa_category?: string | null;
   epa_color?: string | null;
+  live_epa_aqi?: number | null;
+  aqicn_url?: string;
+  aqicn_match_station?: string;
+  aqicn_synced_time?: string;
 }
 
 

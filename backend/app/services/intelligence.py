@@ -321,7 +321,7 @@ class IntelligenceService:
             }
         }
 
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=25.0) as client:
             resp = None
             used_model = preferred_model
             for m in models_to_try:
@@ -351,16 +351,33 @@ class IntelligenceService:
             raw_text = re.sub(r"```$", "", raw_text.strip())
             parsed = json.loads(raw_text)
 
-            conf = float(parsed.get("confidence", 0.88))
+            def _safe_float(val, fallback: float) -> float:
+                if val is None:
+                    return fallback
+                if isinstance(val, (int, float)):
+                    return float(val)
+                m = re.search(r"[-+]?\d*\.?\d+", str(val))
+                if m:
+                    try:
+                        return float(m.group(0))
+                    except ValueError:
+                        pass
+                return fallback
+
+            conf_raw = parsed.get("confidence", 0.88)
+            conf = _safe_float(conf_raw, 0.88)
             conf = max(0.50, min(0.98, conf))
             conf_level = "HIGH" if conf >= 0.85 else ("MODERATE" if conf >= 0.70 else "CAUTIONARY")
 
             pm25 = parsed.get("predicted_pm25")
             aqi_val = parsed.get("predicted_aqi")
             if pm25 and not aqi_val:
-                aqi_sub = calculate_sub_index("pm25", float(pm25))
-                if aqi_sub:
-                    aqi_val = int(aqi_sub)
+                try:
+                    aqi_sub = calculate_sub_index("pm25", _safe_float(pm25, 60.0))
+                    if aqi_sub:
+                        aqi_val = int(aqi_sub)
+                except Exception:
+                    pass
 
             return AtmosphericQueryResponse(
                 query=query,
@@ -375,15 +392,15 @@ class IntelligenceService:
                 ]),
                 primary_driver=parsed.get("primary_driver", "Boundary Layer Compression"),
                 secondary_driver=parsed.get("secondary_driver"),
-                ventilation_status=parsed.get("ventilation_status", context["indices"]["ventilation_category"]),
-                ventilation_index=float(parsed.get("ventilation_index", context["indices"]["ventilation_index"])),
-                regime=parsed.get("regime", context["regime"]),
-                inversion_risk=float(parsed.get("inversion_risk", context["indices"]["inversion_risk_score"])),
+                ventilation_status=str(parsed.get("ventilation_status", context["indices"]["ventilation_category"])),
+                ventilation_index=_safe_float(parsed.get("ventilation_index"), float(context["indices"]["ventilation_index"])),
+                regime=str(parsed.get("regime", context["regime"])),
+                inversion_risk=_safe_float(parsed.get("inversion_risk"), float(context["indices"]["inversion_risk_score"])),
                 evidence_sources=parsed.get("evidence_sources", ["CPCB Ground Sensors", "IMD Open-Meteo", "NASA FIRMS", "GNN-Transformer"]),
-                model_name=f"Google Gemini ({model_name})",
+                model_name=f"Google Gemini ({used_model})",
                 suggested_actions=parsed.get("suggested_actions", ["Implement GRAP Stage II dust suppression"]),
-                predicted_pm25=float(pm25) if pm25 is not None else None,
-                predicted_aqi=int(aqi_val) if aqi_val is not None else None,
+                predicted_pm25=_safe_float(pm25, 65.0) if pm25 is not None else None,
+                predicted_aqi=int(_safe_float(aqi_val, 150.0)) if aqi_val is not None else None,
                 predicted_category=parsed.get("predicted_category"),
                 station_id=context["target_station_id"],
                 station_name=context["target_station_name"],

@@ -130,12 +130,12 @@ export default function IntelligencePanel({
   const RegimeIcon = meta.icon;
   const confPct = Math.round((regime?.confidence ?? 0.85) * 100);
 
-  const pm25 = selectedObservation?.pollutants?.pm25 ?? 60.0;
+  const pm25 = selectedObservation?.pollutants?.pm25 ?? 55.0;
   const epaRes = calculateEpaAqiFromPm25(pm25);
   const cpcbRes = calculateAqiFromPm25(pm25);
 
   const activeAqi = aqiStandard === 'epa'
-    ? (selectedObservation?.epa_aqi ?? epaRes.aqi)
+    ? (selectedObservation?.epa_aqi ?? selectedObservation?.live_epa_aqi ?? epaRes.aqi)
     : (selectedObservation?.aqi ?? cpcbRes.aqi);
 
   const activeCategory = aqiStandard === 'epa'

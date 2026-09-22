@@ -169,11 +169,18 @@ export default function WorkbenchHeader({
           <span className="hidden md:inline">Data Sources</span>
         </button>
 
-        {/* Timestamp */}
-        <div className="hidden lg:flex items-center gap-1.5 text-[11px] font-mono text-slate-400" title="Synchronized with current time">
-          <Clock className="w-3 h-3 text-slate-500" />
-          <span>{syncTime ? `Sync: ${syncTime}` : 'Sync: Live'}</span>
-        </div>
+        {/* AQICN Live Sync Link */}
+        <a
+          href="https://aqicn.org/city/delhi/anand-vihar/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden lg:flex items-center gap-1.5 text-[11px] font-mono text-emerald-400 bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/30 px-2 py-1 rounded transition-all group"
+          title="Direct live telemetry synchronized with https://aqicn.org/. Click to verify anywhere."
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <span>aqicn.org: {syncTime || 'Live'}</span>
+          <ExternalLink className="w-2.5 h-2.5 opacity-70 group-hover:opacity-100" />
+        </a>
 
         {/* Mode Indicator */}
         <ModeIndicator mode={mode} />

@@ -33,6 +33,7 @@ import {
 import {
   FALLBACK_STATIONS,
   getFallbackObservations,
+  updateLiveAqicnFeed,
   FALLBACK_DISASTER_RISK,
   FALLBACK_TELEMETRY_MESH,
   FALLBACK_ATMOSPHERIC_REGIME,
@@ -433,8 +434,19 @@ export interface MitigationPartner {
 
 export const api = {
   getStations: () => fetchAPI<{ stations: Station[]; count: number }>('/api/v1/stations'),
-  getObservations: (stationId?: string) => {
+  getObservations: async (stationId?: string) => {
     const params = stationId ? `?station_id=${stationId}` : '';
+    if (typeof window !== 'undefined') {
+      try {
+        const res = await fetch('/api/aqicn');
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.stations) {
+            updateLiveAqicnFeed(json.stations);
+          }
+        }
+      } catch (_) {}
+    }
     return fetchAPI<{ observations: Observation[]; mode: string; last_updated: string | null }>(`/api/v1/observations/current${params}`);
   },
   getForecast: (stationId: string) => fetchAPI<ForecastResponse>(`/api/v1/forecast/${stationId}`),

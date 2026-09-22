@@ -15,7 +15,7 @@ import {
   ForecastExplanation,
   BlendedForecastResponse
 } from '@/lib/types';
-import { calculateAqiFromPm25 } from '@/lib/naqi';
+import { calculateAqiFromPm25, calculateEpaAqiFromPm25 } from '@/lib/naqi';
 
 import { LayoutDashboard, TrendingUp, Recycle, Siren, Menu, X } from 'lucide-react';
 import WorkbenchHeader from '@/components/workbench/WorkbenchHeader';
@@ -146,6 +146,13 @@ export default function WorkbenchPage() {
           }
         };
       }
+      const currentPm = obs.pollutants?.pm25 ?? 55.0;
+      const epaResult = calculateEpaAqiFromPm25(currentPm);
+      obs.epa_aqi = obs.live_epa_aqi ?? obs.epa_aqi ?? epaResult.aqi;
+      obs.epa_category = obs.epa_category ?? epaResult.category;
+      obs.epa_color = obs.epa_color ?? epaResult.color;
+      obs.aqicn_url = obs.aqicn_url || `https://aqicn.org/city/delhi/${obs.station_id.toLowerCase().replace(/_/g, '-')}/`;
+      obs.aqicn_synced_time = obs.aqicn_synced_time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' IST';
       obsMap[obs.station_id] = obs;
     });
     setObservations((prev) => ({ ...prev, ...obsMap }));

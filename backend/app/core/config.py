@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     FIRMS_MAP_KEY: str = ""
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
-    AI_MODEL_NAME: str = "gemini-2.0-flash"
+    AI_MODEL_NAME: str = "gemini-2.5-flash"
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
     FRONTEND_URL: str = "http://localhost:3000"

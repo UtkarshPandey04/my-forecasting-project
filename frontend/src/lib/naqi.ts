@@ -199,3 +199,13 @@ export function calculateEpaAqiFromPm25(pm25: number): {
   return { aqi: 0, category: 'Good', color: '#00e400' };
 }
 
+export function calculatePm25FromEpaAqi(aqi: number): number {
+  if (aqi <= 50) return Math.round(((aqi / 50) * 12.0) * 10) / 10;
+  if (aqi <= 100) return Math.round((((aqi - 51) / 49) * (35.4 - 12.1) + 12.1) * 10) / 10;
+  if (aqi <= 150) return Math.round((((aqi - 101) / 49) * (55.4 - 35.5) + 35.5) * 10) / 10;
+  if (aqi <= 200) return Math.round((((aqi - 151) / 49) * (150.4 - 55.5) + 55.5) * 10) / 10;
+  if (aqi <= 300) return Math.round((((aqi - 201) / 99) * (250.4 - 150.5) + 150.5) * 10) / 10;
+  return Math.round((((aqi - 301) / 199) * (500.4 - 250.5) + 250.5) * 10) / 10;
+}
+
+

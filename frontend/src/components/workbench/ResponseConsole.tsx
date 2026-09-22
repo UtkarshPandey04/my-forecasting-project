@@ -212,12 +212,12 @@ export default function ResponseConsole({
   aqiStandard = 'epa'
 }: ResponseConsoleProps) {
   // AQI and GRAP Protocol calculations
-  const pm25 = observation?.pollutants?.pm25 ?? 60.0;
+  const pm25 = observation?.pollutants?.pm25 ?? 55.0;
   const epaRes = calculateEpaAqiFromPm25(pm25);
   const cpcbRes = calculateAqiFromPm25(pm25);
 
   const activeAqi = aqiStandard === 'epa'
-    ? (observation?.epa_aqi ?? epaRes.aqi)
+    ? (observation?.epa_aqi ?? observation?.live_epa_aqi ?? epaRes.aqi)
     : (observation?.aqi ?? cpcbRes.aqi);
 
   const activeCategory = aqiStandard === 'epa'

@@ -25,7 +25,9 @@ import {
   Info,
   ChevronRight,
   Sliders,
-  Send
+  Send,
+  Phone,
+  MessageSquare
 } from 'lucide-react';
 import {
   ResidueListing,
@@ -38,24 +40,48 @@ import {
   TransportStatus
 } from '@/lib/types';
 import { api } from '@/lib/api';
+import ContactNegotiationModal, { ContactTarget } from './ContactNegotiationModal';
 
 const WASTE_CATEGORIES: { id: WasteCategory; label: string; active: boolean; badge?: string }[] = [
   { id: 'agricultural_residue', label: 'Agricultural Residue', active: true, badge: 'High Airshed Impact' },
-  { id: 'organic_waste', label: 'Municipal Organic Waste', active: false, badge: 'Coming Soon' },
-  { id: 'construction_waste', label: 'C&D Debris & Dust', active: false, badge: 'Q1 2027' },
-  { id: 'used_cooking_oil', label: 'Used Cooking Oil (UCO)', active: false, badge: 'Bio-Diesel' },
-  { id: 'e_waste', label: 'Electronic Waste', active: false, badge: 'Enterprise' },
-  { id: 'industrial_waste', label: 'Industrial Byproducts', active: false, badge: 'Piloting' },
+  { id: 'organic_waste', label: 'Municipal Organic Waste', active: true, badge: 'Mandi & MSW' },
+  { id: 'construction_waste', label: 'C&D Debris & Dust', active: true, badge: 'Recycled Aggregate' },
+  { id: 'used_cooking_oil', label: 'Used Cooking Oil (UCO)', active: true, badge: 'RUCO Bio-Diesel' },
+  { id: 'e_waste', label: 'Electronic Waste', active: true, badge: 'Metals & Battery' },
+  { id: 'industrial_waste', label: 'Industrial Byproducts', active: true, badge: 'Fly Ash & Slag' },
 ];
 
-const CONVERSION_PATHWAYS: { id: ConversionPathway; label: string; desc: string; icon: string }[] = [
-  { id: 'cbg_biogas', label: 'CBG / Compressed Biogas', desc: 'Fermentation for city gas grid & green mobility', icon: '⚡' },
-  { id: 'biochar', label: 'Agri-Biochar', desc: 'Pyrolysis soil amendment & permanent carbon sink', icon: '🌱' },
-  { id: 'biomass_fuel', label: 'Biomass Pellets / Co-Firing', desc: 'NTPC / industrial thermal boiler coal replacement', icon: '🔥' },
-  { id: 'packaging_material', label: 'Molded Pulp Packaging', desc: 'Biodegradable alternative to thermocol & plastic', icon: '📦' },
-  { id: 'paper_pulp', label: 'Eco-Paper & Kraft Pulp', desc: 'High-tensile virgin pulp paper packaging', icon: '📄' },
-  { id: 'mushroom_substrate', label: 'Mushroom Cultivation Substrate', desc: 'Sterilized straw beds for high-value agriculture', icon: '🍄' },
-];
+const STREAM_CONVERSION_PATHWAYS: Record<WasteCategory, { id: ConversionPathway; label: string; desc: string; icon: string }[]> = {
+  agricultural_residue: [
+    { id: 'cbg_biogas', label: 'CBG / Compressed Biogas', desc: 'Anaerobic fermentation for city gas grid & green mobility', icon: '⚡' },
+    { id: 'biochar', label: 'Agri-Biochar', desc: 'Pyrolysis soil amendment & permanent carbon sink', icon: '🌱' },
+    { id: 'biomass_fuel', label: 'Biomass Pellets / Co-Firing', desc: 'NTPC / industrial thermal boiler coal replacement', icon: '🔥' },
+    { id: 'packaging_material', label: 'Molded Pulp Packaging', desc: 'Biodegradable alternative to thermocol & plastic', icon: '📦' },
+    { id: 'paper_pulp', label: 'Eco-Paper & Kraft Pulp', desc: 'High-tensile virgin pulp paper packaging', icon: '📄' },
+    { id: 'mushroom_substrate', label: 'Mushroom Cultivation Substrate', desc: 'Sterilized straw beds for high-value agriculture', icon: '🍄' },
+  ],
+  organic_waste: [
+    { id: 'anaerobic_compost', label: 'Anaerobic Biomethanation', desc: 'High-yield biogas & enriched organic soil humic fertilizer', icon: '🍃' },
+    { id: 'bsf_larvae_protein', label: 'BSF Larvae Bio-Conversion', desc: 'Black soldier fly insect protein & organic frass fertilizer', icon: '🪲' },
+    { id: 'cbg_biogas', label: 'Mandi CBG Compression', desc: 'Fruit & vegetable wet scrap to automotive grade CBG fuel', icon: '⚡' },
+  ],
+  construction_waste: [
+    { id: 'recycled_concrete_aggregate', label: 'Recycled Concrete Aggregate (RCA)', desc: 'Manufactured sand (M-Sand) & structural base coarse aggregate', icon: '🧱' },
+    { id: 'fly_ash_bricks', label: 'Autoclaved Eco-Pavers & Bricks', desc: 'Zero-clay cured interlocking paving blocks & boundary masonry', icon: '🏗️' },
+  ],
+  used_cooking_oil: [
+    { id: 'ruco_biodiesel', label: 'RUCO B100 Transesterification', desc: 'FSSAI certified spent oil transesterified to B100 green diesel', icon: '🛢️' },
+    { id: 'saf_aviation_fuel', label: 'Sustainable Aviation Fuel (SAF)', desc: 'Hydrotreated esters and fatty acids (HEFA) aviation blendstock', icon: '✈️' },
+  ],
+  e_waste: [
+    { id: 'hydrometallurgical_extraction', label: 'Hydrometallurgical Refining', desc: 'Closed-loop 99.9% recovery of Gold, Copper, Palladium & Silver', icon: '🔬' },
+    { id: 'battery_black_mass', label: 'Lithium Black Mass Recovery', desc: 'Cathode active material recovery: Lithium, Cobalt & Nickel salts', icon: '🔋' },
+  ],
+  industrial_waste: [
+    { id: 'slag_cement_ggbs', label: 'GGBS Green Slag Cement', desc: 'Ground granulated blast furnace slag replacing Portland clinker', icon: '🏭' },
+    { id: 'geopolymer_blocks', label: 'Geopolymer Zero-Carbon Blocks', desc: 'Fly ash alkaline activation producing zero-cement loadbearing blocks', icon: '🧱' },
+  ]
+};
 
 interface CircularWorkspaceProps {
   onNavigateToCommand?: () => void;
@@ -212,22 +238,123 @@ export default function CircularWorkspace({
     }
   };
 
-  // Filtered Items
+  // Contact Negotiation Modal State & Handlers
+  const [contactTarget, setContactTarget] = useState<ContactTarget | null>(null);
+  const [showContactModal, setShowContactModal] = useState(false);
+
+  const handleOpenContactForMatch = (match: MarketplaceMatch) => {
+    setContactTarget({
+      name: match.buyer_contact || match.buyer_name,
+      role: 'Off-Taker / Procurement Head',
+      company: match.buyer_name,
+      phone: match.buyer_phone || '+91 98200 11223',
+      email: 'procurement@' + match.buyer_name.toLowerCase().replace(/[^a-z0-9]/g, '') + '.in',
+      location: match.buyer_location,
+      cropOrMaterial: match.material,
+      tonnage: match.matched_quantity_tons,
+      pricePerTon: Math.round((match.estimated_farmer_revenue_inr || 20000) / (match.matched_quantity_tons || 1)),
+      category: selectedCategory,
+      source: 'match'
+    });
+    setShowContactModal(true);
+  };
+
+  const handleOpenContactForListing = (listing: ResidueListing) => {
+    setContactTarget({
+      name: listing.contact_person || listing.farmer_name,
+      role: 'Producer / Aggregator',
+      company: listing.farmer_name,
+      phone: listing.phone || '+91 98101 22345',
+      email: listing.email || 'seller@circulareconomy.in',
+      location: listing.location,
+      cropOrMaterial: `${listing.crop_type} (${listing.residue_type})`,
+      tonnage: listing.quantity_tons,
+      pricePerTon: listing.expected_price_per_ton,
+      category: listing.category,
+      source: 'listing'
+    });
+    setShowContactModal(true);
+  };
+
+  const handleOpenContactForBuyer = (buyer: BuyerRequirement) => {
+    setContactTarget({
+      name: buyer.contact_person || buyer.company_name,
+      role: buyer.buyer_type,
+      company: buyer.company_name,
+      phone: buyer.phone || '+91 98119 88776',
+      email: buyer.email || 'intake@' + buyer.company_name.toLowerCase().replace(/[^a-z0-9]/g, '') + '.in',
+      location: buyer.location,
+      cropOrMaterial: buyer.required_material,
+      tonnage: buyer.required_quantity_tons,
+      pricePerTon: buyer.max_price_per_ton,
+      category: selectedCategory,
+      source: 'buyer'
+    });
+    setShowContactModal(true);
+  };
+
+  const currentPathways = useMemo(() => {
+    return STREAM_CONVERSION_PATHWAYS[selectedCategory] || STREAM_CONVERSION_PATHWAYS.agricultural_residue;
+  }, [selectedCategory]);
+
+  // Filtered Items by Category & Search Query
   const filteredListings = useMemo(() => {
-    return listings.filter(l =>
-      l.farmer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      l.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      l.residue_type.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [listings, searchQuery]);
+    return listings.filter(l => {
+      const matchCat = !selectedCategory || l.category === selectedCategory;
+      const q = searchQuery.toLowerCase();
+      const matchQ =
+        !q ||
+        l.farmer_name.toLowerCase().includes(q) ||
+        l.location.toLowerCase().includes(q) ||
+        l.residue_type.toLowerCase().includes(q) ||
+        l.crop_type.toLowerCase().includes(q);
+      return matchCat && matchQ;
+    });
+  }, [listings, selectedCategory, searchQuery]);
 
   const filteredBuyers = useMemo(() => {
-    return buyers.filter(b =>
-      b.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.buyer_type.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [buyers, searchQuery]);
+    const validPathwayIds = currentPathways.map(p => p.id);
+    return buyers.filter(b => {
+      const matchCat =
+        !selectedCategory ||
+        validPathwayIds.includes(b.conversion_pathway);
+      const q = searchQuery.toLowerCase();
+      const matchQ =
+        !q ||
+        b.company_name.toLowerCase().includes(q) ||
+        b.location.toLowerCase().includes(q) ||
+        b.buyer_type.toLowerCase().includes(q) ||
+        b.required_material.toLowerCase().includes(q);
+      return matchCat && matchQ;
+    });
+  }, [buyers, currentPathways, selectedCategory, searchQuery]);
+
+  const filteredMatches = useMemo(() => {
+    return matches.filter(m => {
+      const parentListing = listings.find(l => l.id === m.listing_id);
+      const matchCat = !selectedCategory || !parentListing || parentListing.category === selectedCategory;
+      const q = searchQuery.toLowerCase();
+      const matchQ =
+        !q ||
+        m.farmer_name.toLowerCase().includes(q) ||
+        m.buyer_name.toLowerCase().includes(q) ||
+        m.material.toLowerCase().includes(q);
+      return matchCat && matchQ;
+    });
+  }, [matches, listings, selectedCategory, searchQuery]);
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => {
+      const q = searchQuery.toLowerCase();
+      return (
+        !q ||
+        o.id.toLowerCase().includes(q) ||
+        o.pickup_location.toLowerCase().includes(q) ||
+        o.delivery_location.toLowerCase().includes(q) ||
+        o.transporter_name.toLowerCase().includes(q)
+      );
+    });
+  }, [orders, searchQuery]);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#080d15] text-slate-200 overflow-y-auto overflow-x-hidden font-sans select-none">
@@ -444,14 +571,14 @@ export default function CircularWorkspace({
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xs font-bold uppercase font-mono tracking-wider text-slate-300 flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-400" />
-                  Configured Residue Conversion Pathways & End-Markets
+                  Configured {WASTE_CATEGORIES.find(c => c.id === selectedCategory)?.label || 'Residue'} Conversion Pathways & End-Markets
                 </h3>
                 <span className="text-[11px] text-slate-400 font-mono">
-                  Conversion feasibility configured by moisture & fiber density rules
+                  Active conversion routes for {selectedCategory.replace(/_/g, ' ')}
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-                {CONVERSION_PATHWAYS.map(p => (
+                {currentPathways.map(p => (
                   <div key={p.id} className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.06] hover:border-emerald-500/30 transition-all group">
                     <div className="text-xl mb-1">{p.icon}</div>
                     <div className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">{p.label}</div>
@@ -468,7 +595,7 @@ export default function CircularWorkspace({
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase font-mono tracking-wider text-emerald-400 flex items-center gap-1.5">
                     <Leaf className="w-3.5 h-3.5" />
-                    Available Agricultural Residue Supply ({filteredListings.length})
+                    Available Supply ({filteredListings.length})
                   </h3>
                   <button
                     onClick={() => setActiveTab('farmer-listings')}
@@ -676,10 +803,14 @@ export default function CircularWorkspace({
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between">
-                    <span className="text-xs text-slate-400 font-mono">
-                      {listing.active_matches_count} Compatible Processors
-                    </span>
+                  <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => handleOpenContactForListing(listing)}
+                      className="px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 border border-white/[0.12] rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
+                    >
+                      <Phone className="w-3 h-3 text-emerald-400" />
+                      Contact Seller
+                    </button>
                     <button
                       onClick={() => setActiveTab('smart-matches')}
                       className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 rounded-lg text-xs font-semibold flex items-center gap-1"
@@ -764,10 +895,14 @@ export default function CircularWorkspace({
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between">
-                    <span className="text-xs text-slate-400 font-mono">
-                      {buyer.pickup_available ? 'Transporter Supplied' : 'Gate Delivery'}
-                    </span>
+                  <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => handleOpenContactForBuyer(buyer)}
+                      className="px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 border border-white/[0.12] rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
+                    >
+                      <Phone className="w-3 h-3 text-sky-400" />
+                      Contact Buyer
+                    </button>
                     <button
                       onClick={() => setActiveTab('smart-matches')}
                       className="px-3 py-1.5 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-400/30 rounded-lg text-xs font-semibold flex items-center gap-1"
@@ -800,7 +935,7 @@ export default function CircularWorkspace({
             </div>
 
             <div className="space-y-3">
-              {matches.map(match => (
+              {filteredMatches.map(match => (
                 <div
                   key={match.id}
                   className="bg-white/[0.03] border border-white/[0.08] hover:border-emerald-500/40 rounded-xl p-5 transition-all"
@@ -811,7 +946,7 @@ export default function CircularWorkspace({
                       {/* Farmer Side */}
                       <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-lg p-3.5">
                         <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold">
-                          Seller / Farmer
+                          Seller / Producer
                         </span>
                         <h4 className="text-sm font-bold text-white mt-1">{match.farmer_name}</h4>
                         <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
@@ -822,14 +957,14 @@ export default function CircularWorkspace({
                           Material: <b className="text-emerald-300">{match.material} ({match.matched_quantity_tons}t)</b>
                         </div>
                         <div className="text-xs font-mono text-amber-300 mt-0.5">
-                          Est. Farmer Revenue: <b>₹{match.estimated_farmer_revenue_inr.toLocaleString()}</b>
+                          Est. Producer Revenue: <b>₹{match.estimated_farmer_revenue_inr.toLocaleString()}</b>
                         </div>
                       </div>
 
                       {/* Buyer Side */}
                       <div className="bg-sky-950/20 border border-sky-500/20 rounded-lg p-3.5">
                         <span className="text-[10px] font-mono uppercase tracking-wider text-sky-400 font-bold">
-                          Buyer / Processor
+                          Buyer / Off-Taker
                         </span>
                         <h4 className="text-sm font-bold text-white mt-1">{match.buyer_name}</h4>
                         <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
@@ -855,7 +990,7 @@ export default function CircularWorkspace({
                         <span className="text-xs font-normal text-slate-400">match</span>
                       </div>
                       <span className="text-[10px] text-slate-400 mt-0.5 font-mono">
-                        Not a scientific prediction
+                        Multi-parameter algorithmic alignment
                       </span>
 
                       {/* Ecological & Economic KPIs */}
@@ -885,12 +1020,11 @@ export default function CircularWorkspace({
                               Accept Match
                             </button>
                             <button
-                              onClick={() => {
-                                setActionSuccessMsg(`Contact request transmitted to ${match.buyer_name}`);
-                                setTimeout(() => setActionSuccessMsg(null), 4000);
-                              }}
-                              className="px-3 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-white text-xs rounded-lg transition-all"
+                              onClick={() => handleOpenContactForMatch(match)}
+                              className="px-3.5 py-2 bg-white/[0.08] hover:bg-white/[0.15] text-white border border-white/[0.15] text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 active:scale-95"
+                              title="Direct Call, WhatsApp & Counterparty Negotiation"
                             >
+                              <Phone className="w-3.5 h-3.5 text-emerald-400" />
                               Contact
                             </button>
                           </>
@@ -946,7 +1080,7 @@ export default function CircularWorkspace({
 
             {/* Active Orders List */}
             <div className="space-y-3">
-              {orders.map(order => (
+              {filteredOrders.map(order => (
                 <div
                   key={order.id}
                   className="bg-white/[0.03] border border-white/[0.08] rounded-xl p-5"
@@ -998,6 +1132,16 @@ export default function CircularWorkspace({
                       </div>
 
                       <div className="flex items-center gap-1.5 mt-2">
+                        {order.transporter_phone && (
+                          <a
+                            href={`tel:${order.transporter_phone}`}
+                            className="px-2.5 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 border border-white/[0.12] rounded-lg text-xs font-medium flex items-center gap-1 transition-all"
+                            title={`Call Driver: ${order.transporter_phone}`}
+                          >
+                            <Phone className="w-3 h-3 text-emerald-400" />
+                            Call Fleet
+                          </a>
+                        )}
                         {order.status === 'PICKUP_SCHEDULED' && (
                           <button
                             onClick={() => handleAdvanceTransport(order.id, 'IN_TRANSIT' as TransportStatus)}
@@ -1477,6 +1621,17 @@ export default function CircularWorkspace({
           </div>
         </div>
       )}
+
+      {/* Counterparty Contact & Deal Negotiation Modal */}
+      <ContactNegotiationModal
+        isOpen={showContactModal}
+        onClose={() => setShowContactModal(false)}
+        target={contactTarget}
+        onProposalSent={(msg: string) => {
+          setActionSuccessMsg(msg);
+          setTimeout(() => setActionSuccessMsg(null), 6000);
+        }}
+      />
     </div>
   );
 }

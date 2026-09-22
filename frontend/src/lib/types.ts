@@ -504,12 +504,24 @@ export type ConversionPathway =
   | 'biomass_fuel'
   | 'packaging_material'
   | 'paper_pulp'
-  | 'mushroom_substrate';
+  | 'mushroom_substrate'
+  | 'anaerobic_compost'
+  | 'bsf_larvae_protein'
+  | 'recycled_concrete_aggregate'
+  | 'fly_ash_bricks'
+  | 'ruco_biodiesel'
+  | 'saf_aviation_fuel'
+  | 'hydrometallurgical_extraction'
+  | 'battery_black_mass'
+  | 'slag_cement_ggbs'
+  | 'geopolymer_blocks';
 
 export type TransportStatus =
   | 'LISTED'
   | 'MATCHED'
+  | 'SCHEDULED'
   | 'PICKUP_SCHEDULED'
+  | 'LOADED'
   | 'IN_TRANSIT'
   | 'DELIVERED'
   | 'PROCESSED';
@@ -535,6 +547,9 @@ export interface ResidueListing {
   status: TransportStatus;
   active_matches_count: number;
   is_demo?: boolean;
+  phone?: string;
+  email?: string;
+  contact_person?: string;
 }
 
 export interface BuyerRequirement {
@@ -549,13 +564,17 @@ export interface BuyerRequirement {
   min_price_per_ton: number;
   max_price_per_ton: number;
   pickup_available: boolean;
-  required_moisture_max_pct: number;
+  required_moisture_max_pct?: number;
   availability_period: string;
   conversion_pathway: ConversionPathway;
   created_at: string;
-  status: string;
+  status: 'ACTIVE' | 'PARTIALLY_FULFILLED' | 'CLOSED';
   fulfilled_tons: number;
+  category?: WasteCategory;
   is_demo?: boolean;
+  contact_person?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface MarketplaceMatch {
@@ -564,8 +583,10 @@ export interface MarketplaceMatch {
   requirement_id: string;
   farmer_name: string;
   farmer_location: string;
+  farmer_contact?: string;
   buyer_name: string;
   buyer_location: string;
+  buyer_contact?: string;
   material: string;
   matched_quantity_tons: number;
   distance_km: number;
@@ -580,6 +601,11 @@ export interface MarketplaceMatch {
   status: 'PROPOSED' | 'ACCEPTED' | 'REJECTED' | 'CONTRACTED';
   created_at: string;
   is_demo?: boolean;
+  category?: WasteCategory;
+  buyer_phone?: string;
+  buyer_email?: string;
+  buyer_contact_person?: string;
+  farmer_phone?: string;
 }
 
 export interface TransportOrder {
@@ -592,6 +618,7 @@ export interface TransportOrder {
   quantity_tons: number;
   vehicle_type: string;
   transporter_name: string;
+  transporter_phone?: string;
   scheduled_pickup_date: string;
   status: TransportStatus;
   distance_km: number;

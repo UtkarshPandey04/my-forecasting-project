@@ -566,80 +566,53 @@ export default function DisasterRiskMap({
           style={{ width: '100%', height: '100%', minHeight: '460px' }}
           mapStyle={BASEMAP_STYLES[basemapKey]}
           attributionControl={false}
+          reuseMaps={true}
+          dragRotate={false}
+          touchPitch={false}
+          maxTileCacheSize={100}
           onLoad={() => setMapLoaded(true)}
           onError={() => setWebglFailed(true)}
         >
           <NavigationControl position="bottom-right" />
 
-          {/* Render Multi-Hazard Risk Zones */}
+          {/* Render Multi-Hazard Risk Zones - Ultra-Smooth Tactical Beacons */}
           {visibleZones.map((zone) => {
             const config = HAZARD_CONFIG[zone.hazard];
             const Icon = config.icon;
             const isSelected = selectedZone?.id === zone.id;
-            const isHigh = zone.score >= 25;
 
             return (
               <Marker
                 key={zone.id}
                 longitude={zone.coordinates[0]}
                 latitude={zone.coordinates[1]}
-                anchor="bottom"
+                anchor="center"
                 onClick={(e) => {
                   e.originalEvent.stopPropagation();
                   flyToZone(zone);
                 }}
               >
-                <div className="group relative cursor-pointer select-none -translate-y-1">
-                  {/* Pulsing Aura */}
-                  {isHigh && (
-                    <div
-                      className="absolute -inset-1.5 animate-ping rounded-md opacity-60 pointer-events-none"
-                      style={{ backgroundColor: config.ringColor }}
-                    />
-                  )}
-
-                  {/* High-Contrast Readable Card Pin */}
+                <div
+                  className="group relative cursor-pointer select-none transition-transform duration-150 hover:scale-115 active:scale-95"
+                  title={`${zone.name} • ${config.label} (${zone.score.toFixed(1)}/100)`}
+                >
+                  {/* High-Performance Tactical Beacon Pill */}
                   <div
-                    className={`relative flex flex-col rounded-md border shadow-2xl backdrop-blur-md transition-all duration-200 group-hover:scale-105 ${
-                      isSelected
-                        ? 'ring-2 ring-white border-white bg-[#0a1018]'
-                        : `${config.badgeBg} ${config.badgeBorder}`
-                    }`}
-                    style={{ minWidth: '150px' }}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#080d14] border transition-all"
+                    style={{
+                      borderColor: isSelected ? '#ffffff' : config.color,
+                      boxShadow: isSelected
+                        ? `0 0 16px ${config.color}, 0 4px 12px rgba(0,0,0,0.9)`
+                        : `0 2px 8px rgba(0,0,0,0.7)`
+                    }}
                   >
-                    {/* Top Header Strip */}
-                    <div className="flex items-center justify-between px-2 py-1 border-b border-white/10 gap-2">
-                      <div className="flex items-center gap-1">
-                        <Icon className={`h-3.5 w-3.5 ${config.badgeText}`} />
-                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-200">
-                          {config.label}
-                        </span>
-                      </div>
-                      <span
-                        className={`rounded px-1.5 py-0.2 text-[9px] font-mono font-bold uppercase ${config.badgeText}`}
-                      >
-                        {zone.score.toFixed(1)} {zone.level}
-                      </span>
-                    </div>
-
-                    {/* Zone Name */}
-                    <div className="px-2 py-1 bg-black/40">
-                      <div className="text-xs font-bold text-white tracking-tight truncate">
-                        {zone.name}
-                      </div>
-                      <div className="text-[9px] font-mono text-cyan-300 truncate mt-0.5">
-                        {zone.evidence.split('•')[0]}
-                      </div>
-                    </div>
-
-                    {/* Pin Point Pointer Triangle */}
-                    <div
-                      className="absolute left-1/2 -bottom-1.5 h-3 w-3 -translate-x-1/2 rotate-45 border-r border-b"
-                      style={{
-                        backgroundColor: '#0a1018',
-                        borderColor: isSelected ? '#ffffff' : config.color
-                      }}
-                    />
+                    <Icon className="h-3 w-3 shrink-0" style={{ color: config.color }} />
+                    <span className="text-[10px] font-mono font-bold text-white leading-none">
+                      {zone.score.toFixed(0)}
+                    </span>
+                    <span className="text-[9px] font-mono text-slate-300 font-medium leading-none max-w-[85px] truncate">
+                      {zone.name.split(' ')[0]}
+                    </span>
                   </div>
                 </div>
               </Marker>

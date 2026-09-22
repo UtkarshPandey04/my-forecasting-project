@@ -36,6 +36,7 @@ import IncidentCommand from '@/components/workbench/IncidentCommand';
 import ResponseConsole from '@/components/workbench/ResponseConsole';
 import CircularWorkspace from '@/components/workbench/CircularWorkspace';
 import DemoScenarioModal, { DEMO_SCENARIOS, DemoStep } from '@/components/workbench/DemoScenarioModal';
+import DemoFloatingDock from '@/components/workbench/DemoFloatingDock';
 
 // Dynamically import map to avoid SSR issues
 
@@ -92,29 +93,64 @@ export default function WorkbenchPage() {
 
   const [demoModalOpen, setDemoModalOpen] = useState<boolean>(false);
   const [currentDemoStepIndex, setCurrentDemoStepIndex] = useState<number>(0);
+  const [isDemoActive, setIsDemoActive] = useState<boolean>(false);
 
   const handleApplyDemoScenario = (step: DemoStep) => {
-    if (step.simulatedState.stationId) {
-      setSelectedStationId(step.simulatedState.stationId);
-    }
+    setIsDemoActive(true);
+    const targetId = step.simulatedState.stationId || 'anand_vihar';
+    setSelectedStationId(targetId);
+
+    const targetPm = step.simulatedState.pm25;
+    const { aqi: naqiVal, category: naqiCat, color: naqiCol } = calculateAqiFromPm25(targetPm);
+    const { aqi: epaVal, category: epaCat, color: epaCol } = calculateEpaAqiFromPm25(targetPm);
+
     setObservations((prev) => {
-      const targetId = step.simulatedState.stationId;
       const existing = prev[targetId] || Object.values(prev)[0];
       if (!existing) return prev;
       return {
         ...prev,
         [targetId]: {
           ...existing,
-          aqi: step.simulatedState.aqi,
+          aqi: step.simulatedState.aqi || naqiVal,
+          aqi_category: naqiCat,
+          aqi_color: naqiCol,
+          live_epa_aqi: epaVal,
+          epa_aqi: epaVal,
+          epa_category: epaCat,
+          epa_color: epaCol,
+          aqicn_synced_time: 'Simulated Scenario Telemetry',
           pollutants: {
             ...existing.pollutants,
-            pm25: step.simulatedState.pm25,
-            pm10: Math.round(step.simulatedState.pm25 * 1.6)
+            pm25: targetPm,
+            pm10: Math.round(targetPm * 1.6),
+            no2: Math.round(targetPm * 0.4),
+            so2: 14.2,
+            co: 1.2
           }
         }
       };
     });
+
+    // Update dynamic atmospheric indices to match scenario
+    setIndices((prev) => {
+      if (!prev) return prev;
+      const isCritical = step.simulatedState.riskScore > 80;
+      const isElevated = step.simulatedState.riskScore > 50;
+      return {
+        ...prev,
+        ventilation_coefficient: isCritical ? 920 : isElevated ? 1450 : 3800,
+        stagnation_index: isCritical ? 88.5 : isElevated ? 65.0 : 22.0,
+        inversion_strength: isCritical ? 'STRONG' : isElevated ? 'MODERATE' : 'WEAK',
+        boundary_layer_height: isCritical ? 380 : isElevated ? 620 : 1350
+      };
+    });
+
     setCurrentView(step.targetView);
+  };
+
+  const handleExitDemo = () => {
+    setIsDemoActive(false);
+    fetchAllData();
   };
 
 
@@ -685,6 +721,17 @@ export default function WorkbenchPage() {
         onSelectStep={setCurrentDemoStepIndex}
         onApplyScenario={handleApplyDemoScenario}
       />
+
+      {/* Persistent Floating Mini-Player for Active Demo Scenarios */}
+      {isDemoActive && !demoModalOpen && (
+        <DemoFloatingDock
+          currentStepIndex={currentDemoStepIndex}
+          onSelectStep={setCurrentDemoStepIndex}
+          onApplyScenario={handleApplyDemoScenario}
+          onOpenModal={() => setDemoModalOpen(true)}
+          onExitDemo={handleExitDemo}
+        />
+      )}
     </div>
   );
 }

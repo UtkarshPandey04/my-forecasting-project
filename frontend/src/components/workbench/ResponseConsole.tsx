@@ -28,7 +28,17 @@ import {
   Wind,
   Layers,
   Building2,
-  AlertCircle
+  AlertCircle,
+  Volume2,
+  VolumeX,
+  Download,
+  Zap,
+  Droplets,
+  Activity,
+  PhoneCall,
+  Navigation,
+  ShieldCheck,
+  Flame
 } from 'lucide-react';
 import { ForecastResponse, Observation, Station } from '@/lib/types';
 import { firstGrapTrigger, getGrapStage, GrapAssessment } from '@/lib/grap';
@@ -56,6 +66,145 @@ interface QueuedAction {
   status: string;
   created_at: string;
 }
+
+export interface FieldUnit {
+  id: string;
+  name: string;
+  unitCode: string;
+  type: 'Anti-Smog Cannon' | 'Mechanized Sweeper' | 'Flying Inspection Squad' | 'Border Diversion Checkpoint' | 'Respiratory Health Clinic';
+  status: 'STANDBY' | 'DISPATCHED' | 'ON_SCENE' | 'RECHARGING';
+  assignedLocation: string;
+  resourceLevelPct: number; // Water / Battery / Fuel
+  lastPing: string;
+  operator: string;
+  operatorPhone: string;
+  activeSop: string;
+}
+
+export interface TacticalSop {
+  id: string;
+  title: string;
+  desc: string;
+  impact: string;
+  targetAgency: string;
+  priority: 'CRITICAL_EMERGENCY' | 'IMMEDIATE_DISPATCH' | 'STATUTORY_ENFORCEMENT' | 'PUBLIC_HEALTH_SURGE';
+}
+
+const INITIAL_FIELD_UNITS: FieldUnit[] = [
+  {
+    id: 'UNIT-AS-01',
+    name: 'Anti-Smog Cannon DL-01 (60m High-Throw)',
+    unitCode: 'ASC-EAST-01',
+    type: 'Anti-Smog Cannon',
+    status: 'ON_SCENE',
+    assignedLocation: 'Anand Vihar ISBT & Vikas Marg Corridor',
+    resourceLevelPct: 84,
+    lastPing: '2 mins ago',
+    operator: 'Inspector V. K. Yadav',
+    operatorPhone: '+91 98110 44211',
+    activeSop: 'Continuous fine atomized mist barrier along transit corridor'
+  },
+  {
+    id: 'UNIT-AS-02',
+    name: 'Anti-Smog Cannon DL-02 (Mobile Mist Unit)',
+    unitCode: 'ASC-WEST-02',
+    type: 'Anti-Smog Cannon',
+    status: 'DISPATCHED',
+    assignedLocation: 'Mundka Industrial Area Phase-II',
+    resourceLevelPct: 92,
+    lastPing: 'Just now',
+    operator: 'Sub-Officer Rajesh Gujjar',
+    operatorPhone: '+91 98731 22890',
+    activeSop: 'Suppressing industrial plastic pyrolysis particulate suspension'
+  },
+  {
+    id: 'UNIT-SWP-03',
+    name: 'Mechanized Heavy Vacuum Sweeper #12',
+    unitCode: 'MCD-SWP-12',
+    type: 'Mechanized Sweeper',
+    status: 'ON_SCENE',
+    assignedLocation: 'Outer Ring Road (Jahangirpuri to Wazirpur)',
+    resourceLevelPct: 76,
+    lastPing: '4 mins ago',
+    operator: 'Duty Driver Harish Chandra',
+    operatorPhone: '+91 98188 77612',
+    activeSop: 'High-speed HEPA filtration sweeping of unpaved road dust'
+  },
+  {
+    id: 'UNIT-FLY-04',
+    name: 'CAQM Inter-Agency Flying Squad #07',
+    unitCode: 'FLY-DPCC-07',
+    type: 'Flying Inspection Squad',
+    status: 'STANDBY',
+    assignedLocation: 'Okhla Industrial Cluster Sector 3',
+    resourceLevelPct: 100,
+    lastPing: '8 mins ago',
+    operator: 'Er. Alok Sharma (DPCC)',
+    operatorPhone: '+91 98211 55432',
+    activeSop: 'Surprise diesel generator & unauthorized fuel raids'
+  },
+  {
+    id: 'UNIT-DIV-05',
+    name: 'Interstate Freight Border Diversion Team',
+    unitCode: 'TFC-SINGHU-01',
+    type: 'Border Diversion Checkpoint',
+    status: 'ON_SCENE',
+    assignedLocation: 'Singhu Border Entry (NH-44)',
+    resourceLevelPct: 95,
+    lastPing: '1 min ago',
+    operator: 'ACP Gurinder Singh',
+    operatorPhone: '+91 98711 99011',
+    activeSop: 'Diverting non-destined commercial BS-III/IV diesel trucks to EPE'
+  },
+  {
+    id: 'UNIT-MED-06',
+    name: 'Mobile Pulmonary Health & Nebulizer Van',
+    unitCode: 'MED-RESP-03',
+    type: 'Respiratory Health Clinic',
+    status: 'STANDBY',
+    assignedLocation: 'Ghazipur Dairy Colony Perimeter',
+    resourceLevelPct: 88,
+    lastPing: '12 mins ago',
+    operator: 'Dr. Neha Saxena',
+    operatorPhone: '+91 99100 33441',
+    activeSop: 'Emergency bronchodilator & oxygen support for vulnerable citizens'
+  }
+];
+
+const TACTICAL_SOPS: TacticalSop[] = [
+  {
+    id: 'sop-freight-lockdown',
+    title: 'Total Heavy Freight Interstate Lockdown',
+    desc: 'Deploy traffic police barricades & divert all non-destined heavy diesel commercial vehicles to EPE/KMP Expressways.',
+    impact: '-24 µg/m³ PM2.5 in central urban core',
+    targetAgency: 'Delhi Traffic Police & NHAI ITMS',
+    priority: 'CRITICAL_EMERGENCY'
+  },
+  {
+    id: 'sop-mist-cascade',
+    title: 'Synchronize 24/7 Water Mist Cannon Cascade',
+    desc: 'Mobilize stationary mist cannons and fleet trucks across Anand Vihar, Mundka, Jahangirpuri, and Wazirpur hot-spots.',
+    impact: '-35% re-suspended road dust suspension',
+    targetAgency: 'MCD / PWD / Disaster Management Cell',
+    priority: 'IMMEDIATE_DISPATCH'
+  },
+  {
+    id: 'sop-cnd-halt',
+    title: 'Enforce Total C&D Demolition Work Halt',
+    desc: 'Issue digital statutory stop-work notices with electronic surveillance on unpaved excavation and ready-mix concrete plants.',
+    impact: '-48 µg/m³ PM10 coarse particulate load',
+    targetAgency: 'DPCC Environmental Squads & MCD',
+    priority: 'STATUTORY_ENFORCEMENT'
+  },
+  {
+    id: 'sop-hospital-surge',
+    title: 'Hospital Respiratory Emergency Surge Protocol',
+    desc: 'Instruct pulmonary emergency wards at AIIMS, Safdarjung, and LNJP to activate nebulizer reserves and emergency oxygen bays.',
+    impact: 'Zero emergency room triage bottleneck',
+    targetAgency: 'Delhi Directorate of Health Services',
+    priority: 'PUBLIC_HEALTH_SURGE'
+  }
+];
 
 interface StatutoryMandate {
   id: string;
@@ -259,6 +408,182 @@ export default function ResponseConsole({
   const [selectedMediums, setSelectedMediums] = useState<string[]>([]);
   const [broadcastPriority, setBroadcastPriority] = useState<string>('Standard');
   const [broadcasting, setBroadcasting] = useState<boolean>(false);
+
+  // Tactical Field Resource Squads State
+  const [fieldUnits, setFieldUnits] = useState<FieldUnit[]>(INITIAL_FIELD_UNITS);
+  const [unitFilter, setUnitFilter] = useState<string>('ALL');
+
+  // Tactical SOP execution state
+  const [triggeredSops, setTriggeredSops] = useState<Record<string, boolean>>({
+    'sop-mist-cascade': true
+  });
+  const [activeSopExecuting, setActiveSopExecuting] = useState<string | null>(null);
+
+  // Manual Operational Stage Override
+  const [manualGrapStage, setManualGrapStage] = useState<string | null>(null);
+
+  // Emergency Siren State
+  const [isSirenActive, setIsSirenActive] = useState<boolean>(false);
+
+  // Active Effective Stage
+  const effectiveStage = manualGrapStage || current.stage;
+
+  // Filtered Field Units
+  const filteredUnits = useMemo(() => {
+    if (unitFilter === 'ALL') return fieldUnits;
+    return fieldUnits.filter((u) => u.type === unitFilter);
+  }, [fieldUnits, unitFilter]);
+
+  const activeUnitsOnSceneCount = fieldUnits.filter(
+    (u) => u.status === 'ON_SCENE' || u.status === 'DISPATCHED'
+  ).length;
+
+  // Play subtle tactical alert audio pulse
+  const triggerAudioBeep = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    } catch {
+      // Audio autoplay policy fallback
+    }
+  };
+
+  const handleToggleSiren = () => {
+    if (isSirenActive) {
+      setIsSirenActive(false);
+      showToast('Emergency Siren Muted', 'Audible alert deactivated.');
+    } else {
+      setIsSirenActive(true);
+      triggerAudioBeep();
+      showToast('Emergency Siren Armed', 'Continuous alert active for critical threshold alerts.');
+    }
+  };
+
+  // Advance unit operational status
+  const handleAdvanceUnitStatus = async (unitId: string) => {
+    const unit = fieldUnits.find((u) => u.id === unitId);
+    if (!unit) return;
+
+    const nextStatusMap: Record<FieldUnit['status'], FieldUnit['status']> = {
+      STANDBY: 'DISPATCHED',
+      DISPATCHED: 'ON_SCENE',
+      ON_SCENE: 'RECHARGING',
+      RECHARGING: 'STANDBY'
+    };
+    const nextStatus = nextStatusMap[unit.status];
+
+    setFieldUnits((prev) =>
+      prev.map((u) => (u.id === unitId ? { ...u, status: nextStatus, lastPing: 'Just now' } : u))
+    );
+
+    triggerAudioBeep();
+    showToast('Field Unit Status Updated', `${unit.name} transitioned to ${nextStatus}.`);
+
+    try {
+      await api.queueResponseAction({
+        action_type: `unit_status_${nextStatus.toLowerCase()}`,
+        stakeholder: 'operations',
+        station_id: stationId,
+        severity: nextStatus === 'ON_SCENE' ? 'CRITICAL' : 'STANDARD',
+        message: `Field unit ${unit.unitCode} (${unit.name}) transitioned to ${nextStatus} at ${unit.assignedLocation}.`,
+        source: 'AeroSense Tactical Dispatch'
+      });
+      fetchActions();
+    } catch {
+      // Graceful fallback
+    }
+  };
+
+  // Replenish unit resource level
+  const handleRechargeUnit = (unitId: string) => {
+    setFieldUnits((prev) =>
+      prev.map((u) =>
+        u.id === unitId
+          ? { ...u, resourceLevelPct: 100, status: 'STANDBY', lastPing: 'Just now' }
+          : u
+      )
+    );
+    triggerAudioBeep();
+    showToast('Unit Replenished', 'Resource reservoir refilled & calibrated to 100%.');
+  };
+
+  // Trigger Immediate Tactical SOP
+  const handleTriggerSop = async (sop: TacticalSop) => {
+    setActiveSopExecuting(sop.id);
+    triggerAudioBeep();
+    try {
+      const res = await api.queueResponseAction({
+        action_type: sop.id,
+        stakeholder: sop.targetAgency,
+        station_id: stationId,
+        severity: sop.priority,
+        message: `[TACTICAL EXECUTION] ${sop.title} dispatched to ${sop.targetAgency}. Expected Impact: ${sop.impact}.`,
+        source: 'AeroSense Tactical SOP Engine'
+      });
+
+      setTriggeredSops((prev) => ({ ...prev, [sop.id]: true }));
+      showToast(
+        'Tactical SOP Executed',
+        `${sop.title} confirmed! ${sop.targetAgency} notified (Ref: ${res?.id || 'SOP-ACK'}).`
+      );
+      fetchActions();
+    } catch {
+      setTriggeredSops((prev) => ({ ...prev, [sop.id]: true }));
+      showToast('SOP Logged Locally', `${sop.title} registered in local operations queue.`);
+    } finally {
+      setActiveSopExecuting(null);
+    }
+  };
+
+  // Download Comprehensive Shift Handover Dossier
+  const handleExportHandoverReport = () => {
+    const report = {
+      reportType: 'AeroSense Operational Incident & Response Shift Handover',
+      timestamp: new Date().toISOString(),
+      airshed: stationDisplayName,
+      stationId,
+      currentAqi: activeAqi,
+      aqiStandard,
+      effectiveGrapStage: effectiveStage,
+      isManualOverride: !!manualGrapStage,
+      enforcedMandatesCount: Object.values(enforcedMandates).filter(Boolean).length,
+      fieldFleetReadiness: fieldUnits.map((u) => ({
+        code: u.unitCode,
+        name: u.name,
+        type: u.type,
+        status: u.status,
+        assignedSector: u.assignedLocation,
+        resourceLevel: `${u.resourceLevelPct}%`,
+        operatorContact: `${u.operator} (${u.operatorPhone})`
+      })),
+      activeTacticalSops: Object.keys(triggeredSops).filter((k) => triggeredSops[k]),
+      recentDispatches: actionQueue.slice(0, 10)
+    };
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `AeroSense-Shift-Handover-${stationId}-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast('Handover Report Exported', 'Official operational shift dossier saved to local downloads.');
+  };
 
   // Feedback Toast
   const [toast, setToast] = useState<{ title: string; message: string } | null>(null);
@@ -537,23 +862,70 @@ export default function ResponseConsole({
                 </div>
               </div>
 
-              {/* Status Pills */}
-              <div className="flex items-center gap-2 font-mono text-xs">
+              {/* Status & Operational Controls */}
+              <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+                {/* GRAP Stage Selector / Override */}
+                <div className="rounded-xl border border-white/10 bg-[#0d141c] px-3 py-1.5 flex flex-col">
+                  <span className="text-slate-400 text-[9px] uppercase">GRAP Protocol Stage:</span>
+                  <select
+                    value={manualGrapStage || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setManualGrapStage(val ? val : null);
+                      showToast(
+                        val ? 'GRAP Protocol Overridden' : 'Auto Live Protocol Restored',
+                        val ? `Station manually locked to STAGE ${val}.` : `Live telemetry restored to Stage ${current.stage}.`
+                      );
+                    }}
+                    className="bg-transparent text-amber-300 font-bold text-xs sm:text-sm focus:outline-none cursor-pointer mt-0.5"
+                  >
+                    <option value="" className="bg-[#0b1016] text-slate-300">
+                      Auto (Live Stage {current.stage})
+                    </option>
+                    <option value="I" className="bg-[#0b1016] text-amber-300">Stage I (Poor • 201-300)</option>
+                    <option value="II" className="bg-[#0b1016] text-orange-300">Stage II (Very Poor • 301-400)</option>
+                    <option value="III" className="bg-[#0b1016] text-rose-300">Stage III (Severe • 401-450)</option>
+                    <option value="IV" className="bg-[#0b1016] text-red-400">Stage IV (Emergency • 450+)</option>
+                  </select>
+                </div>
+
                 <div className="rounded-xl border border-white/10 bg-[#0d141c] px-3 py-2 flex flex-col">
-                  <span className="text-slate-400 text-[9px] uppercase">{aqiStandard === 'epa' ? 'Current EPA AQI:' : 'Current NAQI:'}</span>
+                  <span className="text-slate-400 text-[9px] uppercase">{aqiStandard === 'epa' ? 'EPA AQI:' : 'NAQI:'}</span>
                   <span className="font-bold text-amber-300 text-sm">{activeAqi}</span>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-[#0d141c] px-3 py-2 flex flex-col">
-                  <span className="text-slate-400 text-[9px] uppercase">Active Stage:</span>
-                  <span className="font-bold text-rose-300 text-sm">STAGE {current.stage}</span>
-                </div>
-                <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-3 py-2 flex items-center gap-2 text-emerald-300">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-                  </span>
-                  <span className="font-semibold text-xs">LIVE WATCH</span>
-                </div>
+
+                {/* Emergency Siren Button */}
+                <button
+                  onClick={handleToggleSiren}
+                  className={`px-3 py-2 rounded-xl border flex items-center gap-1.5 transition-all shadow-sm ${
+                    isSirenActive
+                      ? 'bg-red-500/20 text-red-300 border-red-500/40 shadow-red-500/20 animate-pulse'
+                      : 'bg-white/[0.04] text-slate-300 border-white/10 hover:bg-white/[0.08]'
+                  }`}
+                  title={isSirenActive ? 'Deactivate Audible Emergency Alert' : 'Arm Audible Emergency Alert'}
+                >
+                  {isSirenActive ? (
+                    <>
+                      <Volume2 className="h-4 w-4 text-red-400 animate-bounce" />
+                      <span className="font-bold text-xs">SIREN ON</span>
+                    </>
+                  ) : (
+                    <>
+                      <VolumeX className="h-4 w-4 text-slate-400" />
+                      <span className="text-xs">Siren</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Export Handover Report Button */}
+                <button
+                  onClick={handleExportHandoverReport}
+                  className="px-3 py-2 rounded-xl border border-sky-400/30 bg-sky-500/15 hover:bg-sky-500/25 text-sky-200 font-medium flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                  title="Export Official Operational Incident Shift Handover (JSON)"
+                >
+                  <Download className="h-4 w-4 text-sky-400" />
+                  <span className="text-xs">Shift Dossier</span>
+                </button>
               </div>
             </div>
           </div>
@@ -605,7 +977,264 @@ export default function ResponseConsole({
           </div>
         </section>
 
-        {/* ── SECTION 2: CAQM GRAP STAGES & STATUTORY ACTION TRACKER ── */}
+        {/* ── SECTION 2: TACTICAL FIELD FLEET & REAL-TIME UNIT DISPATCH ── */}
+        <section className="rounded-2xl border border-sky-500/25 bg-[#0a1019] p-5 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Navigation className="h-4 w-4 text-sky-400" />
+                <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2.5">
+                  <span>Tactical Field Deployment Fleet</span>
+                  <span className="rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 px-2.5 py-0.5 text-xs font-mono">
+                    {activeUnitsOnSceneCount} / {fieldUnits.length} Units Active
+                  </span>
+                </h2>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Real-time operational positioning and status control for anti-smog mist cannons, mechanized sweepers, and border diversion teams.
+              </p>
+            </div>
+
+            {/* Filter pills */}
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              {[
+                { id: 'ALL', label: 'All Units' },
+                { id: 'Anti-Smog Cannon', label: 'Mist Cannons' },
+                { id: 'Mechanized Sweeper', label: 'Sweepers' },
+                { id: 'Border Diversion Checkpoint', label: 'Border Checkpoints' },
+                { id: 'Flying Inspection Squad', label: 'Inspection Squads' },
+                { id: 'Respiratory Health Clinic', label: 'Medical Vans' }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setUnitFilter(tab.id)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+                    unitFilter === tab.id
+                      ? 'bg-sky-500/25 text-sky-200 border border-sky-400/50 shadow-sm'
+                      : 'bg-white/[0.03] text-slate-400 border border-white/[0.06] hover:bg-white/[0.06] hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Units Grid */}
+          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredUnits.map((unit) => {
+              const isHighResource = unit.resourceLevelPct > 40;
+              const statusColors = {
+                STANDBY: 'bg-sky-500/20 text-sky-300 border-sky-400/40',
+                DISPATCHED: 'bg-amber-500/20 text-amber-300 border-amber-400/40 animate-pulse',
+                ON_SCENE: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40',
+                RECHARGING: 'bg-purple-500/20 text-purple-300 border-purple-400/40'
+              };
+
+              return (
+                <div
+                  key={unit.id}
+                  className="rounded-xl border border-white/[0.08] bg-[#0c1420] p-4 flex flex-col justify-between hover:border-sky-500/40 transition-all shadow-md"
+                >
+                  <div>
+                    {/* Top strip */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/[0.06] border border-white/10 text-slate-300 font-bold">
+                          {unit.unitCode}
+                        </span>
+                        <h3 className="text-xs font-bold text-white mt-1.5 leading-snug">
+                          {unit.name}
+                        </h3>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase border shrink-0 ${
+                          statusColors[unit.status]
+                        }`}
+                      >
+                        {unit.status.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+
+                    {/* Location & SOP */}
+                    <div className="mt-2.5 space-y-1 text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-300">
+                        <MapPin className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                        <span className="truncate font-medium">{unit.assignedLocation}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 pl-5 leading-relaxed line-clamp-2">
+                        {unit.activeSop}
+                      </p>
+                    </div>
+
+                    {/* Reservoir / Fuel Level Meter */}
+                    <div className="mt-3 pt-2.5 border-t border-white/[0.06]">
+                      <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+                        <span>Water / Battery Reservoir:</span>
+                        <span className={`font-bold ${isHighResource ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {unit.resourceLevelPct}%
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            isHighResource ? 'bg-gradient-to-r from-sky-500 to-emerald-400' : 'bg-amber-400'
+                          }`}
+                          style={{ width: `${unit.resourceLevelPct}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Operator & Ping */}
+                    <div className="mt-2.5 flex items-center justify-between text-[10px] font-mono text-slate-400">
+                      <span>Operator: {unit.operator}</span>
+                      <span>Ping: {unit.lastPing}</span>
+                    </div>
+                  </div>
+
+                  {/* Operational Action Buttons */}
+                  <div className="mt-3.5 pt-2.5 border-t border-white/[0.08] flex items-center gap-2">
+                    <button
+                      onClick={() => handleAdvanceUnitStatus(unit.id)}
+                      className="flex-1 py-1.5 rounded-lg text-xs font-bold text-slate-950 bg-sky-400 hover:bg-sky-300 transition-all shadow-md active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <Activity className="h-3 w-3" />
+                      <span>
+                        {unit.status === 'STANDBY' && 'Deploy Unit'}
+                        {unit.status === 'DISPATCHED' && 'Confirm On Scene'}
+                        {unit.status === 'ON_SCENE' && 'Return to Base'}
+                        {unit.status === 'RECHARGING' && 'Complete Check'}
+                      </span>
+                    </button>
+
+                    {unit.resourceLevelPct < 100 && (
+                      <button
+                        onClick={() => handleRechargeUnit(unit.id)}
+                        className="px-2 py-1.5 rounded-lg text-xs bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 border border-white/10 transition"
+                        title="Refill Reservoir to 100%"
+                      >
+                        <Droplets className="h-3 w-3 text-sky-400" />
+                      </button>
+                    )}
+
+                    <a
+                      href={`tel:${unit.operatorPhone}`}
+                      className="p-1.5 rounded-lg text-xs bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 border border-white/10 transition"
+                      title={`Direct Radio/Phone: ${unit.operatorPhone}`}
+                    >
+                      <PhoneCall className="h-3 w-3 text-emerald-400" />
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ── SECTION 3: IMMEDIATE EMERGENCY SOPS & AIRSHED RELIEF IMPACT ── */}
+        <section className="rounded-2xl border border-amber-500/25 bg-[#0f1118] p-5 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-400" />
+                <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                  <span>Immediate Tactical Response SOPs</span>
+                  <span className="rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 px-2 py-0.5 text-[10px] font-mono font-bold uppercase">
+                    1-Click Dispatch
+                  </span>
+                </h2>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Statutory emergency protocols pre-calibrated for immediate cross-agency execution under CAQM mandates.
+              </p>
+            </div>
+
+            {/* Overall Relief Impact summary */}
+            <div className="flex items-center gap-3 text-xs font-mono bg-black/40 px-3 py-1.5 rounded-xl border border-white/[0.08]">
+              <span className="text-slate-400 text-[10px] uppercase">Airshed Relief Est:</span>
+              <span className="text-emerald-400 font-bold">-32 µg/m³ PM2.5</span>
+              <span className="text-slate-600">•</span>
+              <span className="text-cyan-400 font-bold">-64 µg/m³ PM10</span>
+            </div>
+          </div>
+
+          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+            {TACTICAL_SOPS.map((sop) => {
+              const isTriggered = triggeredSops[sop.id];
+              const isExecuting = activeSopExecuting === sop.id;
+
+              return (
+                <div
+                  key={sop.id}
+                  className={`rounded-xl border p-4 flex flex-col justify-between transition-all ${
+                    isTriggered
+                      ? 'border-emerald-500/40 bg-emerald-950/15 shadow-lg shadow-emerald-500/5'
+                      : 'border-white/[0.08] bg-[#0d131d] hover:border-amber-400/40'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-white/[0.06] border border-white/10 text-slate-300 uppercase">
+                        {sop.targetAgency.split(' ')[0]}
+                      </span>
+                      {isTriggered ? (
+                        <span className="flex items-center gap-1 text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/20 border border-emerald-400/30 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 className="h-3 w-3" /> ACTIVE
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-mono text-amber-400/90 font-bold">
+                          STANDBY
+                        </span>
+                      )}
+                    </div>
+
+                    <h4 className="text-xs font-bold text-white mt-2 leading-tight">
+                      {sop.title}
+                    </h4>
+
+                    <p className="text-[11px] text-slate-300 mt-1.5 leading-relaxed">
+                      {sop.desc}
+                    </p>
+
+                    <div className="mt-3 pt-2.5 border-t border-white/[0.06] space-y-1 text-[10px] font-mono">
+                      <div className="flex justify-between text-slate-400">
+                        <span>Expected Benefit:</span>
+                        <span className="text-emerald-300 font-bold">{sop.impact}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-400">
+                        <span>Authority:</span>
+                        <span className="text-slate-300 truncate max-w-[120px]">{sop.targetAgency}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-2.5 border-t border-white/[0.08]">
+                    <button
+                      onClick={() => handleTriggerSop(sop)}
+                      disabled={isExecuting}
+                      className={`w-full py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer ${
+                        isTriggered
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 hover:bg-emerald-500/30'
+                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20'
+                      }`}
+                    >
+                      {isExecuting ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : isTriggered ? (
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                      ) : (
+                        <Zap className="h-3.5 w-3.5 fill-current" />
+                      )}
+                      <span>{isTriggered ? 'Re-Issue SOP Directives' : 'Execute SOP Immediately'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ── SECTION 4: CAQM GRAP STAGES & STATUTORY ACTION TRACKER ── */}
         <section className="grid gap-6 xl:grid-cols-2">
           {/* Left Card: 4-Stage GRAP Escalation Tracker */}
           <div className="rounded-2xl border border-white/[0.08] bg-[#0c1219] p-5 shadow-xl flex flex-col justify-between space-y-4">
@@ -794,7 +1423,7 @@ export default function ResponseConsole({
           </div>
         </section>
 
-        {/* ── SECTION 3: STAKEHOLDER BROADCAST CENTER ── */}
+        {/* ── SECTION 5: STAKEHOLDER BROADCAST CENTER ── */}
         <section className="rounded-2xl border border-white/[0.08] bg-[#0b1016] p-5 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/[0.08] pb-3">
             <div>
@@ -869,7 +1498,7 @@ export default function ResponseConsole({
           </div>
         </section>
 
-        {/* ── SECTION 4: RECENT DISPATCH AUDIT LOG ── */}
+        {/* ── SECTION 6: RECENT DISPATCH AUDIT LOG ── */}
         <section className="rounded-2xl border border-white/[0.08] bg-[#090e14] p-5 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
             <div>

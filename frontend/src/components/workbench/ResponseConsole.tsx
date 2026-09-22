@@ -38,12 +38,14 @@ import {
   PhoneCall,
   Navigation,
   ShieldCheck,
-  Flame
+  Flame,
+  FileDown
 } from 'lucide-react';
 import { ForecastResponse, Observation, Station } from '@/lib/types';
 import { firstGrapTrigger, getGrapStage, GrapAssessment } from '@/lib/grap';
 import { calculateAqiFromPm25, calculateEpaAqiFromPm25 } from '@/lib/naqi';
 import { api } from '@/lib/api';
+import { generateShiftDossierPdf } from '@/lib/generateShiftDossierPdf';
 
 interface ResponseConsoleProps {
   forecast: ForecastResponse | null;
@@ -547,42 +549,48 @@ export default function ResponseConsole({
     }
   };
 
-  // Download Comprehensive Shift Handover Dossier
+  // Download Comprehensive Shift Handover Dossier in Official PDF Format
   const handleExportHandoverReport = () => {
-    const report = {
-      reportType: 'AeroSense Operational Incident & Response Shift Handover',
-      timestamp: new Date().toISOString(),
-      airshed: stationDisplayName,
-      stationId,
-      currentAqi: activeAqi,
-      aqiStandard,
-      effectiveGrapStage: effectiveStage,
-      isManualOverride: !!manualGrapStage,
-      enforcedMandatesCount: Object.values(enforcedMandates).filter(Boolean).length,
-      fieldFleetReadiness: fieldUnits.map((u) => ({
-        code: u.unitCode,
-        name: u.name,
-        type: u.type,
-        status: u.status,
-        assignedSector: u.assignedLocation,
-        resourceLevel: `${u.resourceLevelPct}%`,
-        operatorContact: `${u.operator} (${u.operatorPhone})`
-      })),
-      activeTacticalSops: Object.keys(triggeredSops).filter((k) => triggeredSops[k]),
-      recentDispatches: actionQueue.slice(0, 10)
-    };
+    try {
+      generateShiftDossierPdf({
+        stationDisplayName,
+        stationId,
+        activeAqi,
+        aqiStandard,
+        effectiveStage,
+        isManualOverride: !!manualGrapStage,
+        enforcedMandatesCount: Object.values(enforcedMandates).filter(Boolean).length,
+        totalMandatesCount: STATUTORY_CAQM_MANDATES.length,
+        fieldUnits: fieldUnits.map((u) => ({
+          unitCode: u.unitCode,
+          name: u.name,
+          type: u.type,
+          status: u.status,
+          assignedLocation: u.assignedLocation,
+          resourceLevelPct: u.resourceLevelPct,
+          operator: u.operator,
+          operatorPhone: u.operatorPhone
+        })),
+        triggeredSopList: TACTICAL_SOPS.filter((sop) => triggeredSops[sop.id]).map((sop) => ({
+          code: sop.id,
+          title: sop.title,
+          impact: sop.impact,
+          targetAgency: sop.targetAgency
+        })),
+        recentDispatches: actionQueue.slice(0, 10).map((d) => ({
+          timestamp: d.created_at,
+          target: d.stakeholder,
+          channels: [d.action_type],
+          priority: d.severity,
+          message: d.message
+        }))
+      });
 
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `AeroSense-Shift-Handover-${stationId}-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    showToast('Handover Report Exported', 'Official operational shift dossier saved to local downloads.');
+      showToast('Shift Dossier PDF Generated', 'Official operational shift dossier saved to local downloads as a PDF document.');
+    } catch (err) {
+      console.error('Failed to generate shift dossier PDF:', err);
+      showToast('Export Error', 'Unable to compile PDF shift dossier. Please try again.');
+    }
   };
 
   // Feedback Toast
@@ -917,14 +925,14 @@ export default function ResponseConsole({
                   )}
                 </button>
 
-                {/* Export Handover Report Button */}
+                {/* Export Handover Report Button (PDF) */}
                 <button
                   onClick={handleExportHandoverReport}
-                  className="px-3 py-2 rounded-xl border border-sky-400/30 bg-sky-500/15 hover:bg-sky-500/25 text-sky-200 font-medium flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
-                  title="Export Official Operational Incident Shift Handover (JSON)"
+                  className="px-3 py-2 rounded-xl border border-sky-400/40 bg-sky-500/20 hover:bg-sky-500/30 text-sky-100 font-semibold flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                  title="Export Official Operational Incident Shift Handover (PDF)"
                 >
-                  <Download className="h-4 w-4 text-sky-400" />
-                  <span className="text-xs">Shift Dossier</span>
+                  <FileDown className="h-4 w-4 text-sky-300" />
+                  <span className="text-xs">Shift Dossier (PDF)</span>
                 </button>
               </div>
             </div>

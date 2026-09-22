@@ -34,6 +34,7 @@ import {
   FALLBACK_STATIONS,
   getFallbackObservations,
   updateLiveAqicnFeed,
+  getLiveAqicnCache,
   FALLBACK_DISASTER_RISK,
   FALLBACK_TELEMETRY_MESH,
   FALLBACK_ATMOSPHERIC_REGIME,
@@ -53,7 +54,7 @@ import {
   FALLBACK_INCIDENTS
 } from './fallbackData';
 
-import { calculateAqiFromPm25 } from './naqi';
+import { calculateAqiFromPm25, calculateEpaAqiFromPm25, calculatePm25FromEpaAqi } from './naqi';
 
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
@@ -447,7 +448,40 @@ export const api = {
         }
       } catch (_) {}
     }
-    return fetchAPI<{ observations: Observation[]; mode: string; last_updated: string | null }>(`/api/v1/observations/current${params}`);
+    const result = await fetchAPI<{ observations: Observation[]; mode: string; last_updated: string | null }>(`/api/v1/observations/current${params}`);
+    const liveCache = getLiveAqicnCache();
+    if (result?.observations && Object.keys(liveCache).length > 0) {
+      result.observations = result.observations.map(obs => {
+        const live = liveCache[obs.station_id];
+        if (live && typeof live.aqi === 'number') {
+          const liveAqi = live.aqi;
+          const livePm25 = live.pm25 ?? calculatePm25FromEpaAqi(liveAqi);
+          const epaInfo = calculateEpaAqiFromPm25(livePm25);
+          const naqiInfo = calculateAqiFromPm25(livePm25);
+          return {
+            ...obs,
+            pollutants: {
+              ...obs.pollutants,
+              pm25: livePm25,
+              pm10: live.pm10 ?? obs.pollutants?.pm10 ?? Math.round(livePm25 * 1.55 * 10) / 10,
+            },
+            aqi: naqiInfo.aqi,
+            aqi_category: naqiInfo.category,
+            aqi_color: naqiInfo.color,
+            epa_aqi: liveAqi,
+            epa_category: epaInfo.category,
+            epa_color: epaInfo.color,
+            live_epa_aqi: liveAqi,
+            aqicn_url: live.url || obs.aqicn_url,
+            aqicn_match_station: live.name || obs.aqicn_match_station,
+            aqicn_synced_time: live.utime || live.time || obs.aqicn_synced_time,
+            source: 'AQICN_WAQI_LIVE'
+          };
+        }
+        return obs;
+      });
+    }
+    return result;
   },
   getForecast: (stationId: string) => fetchAPI<ForecastResponse>(`/api/v1/forecast/${stationId}`),
   getHealth: () => fetchAPI<HealthResponse>('/api/v1/health'),

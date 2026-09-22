@@ -13,7 +13,7 @@ from app.providers.openmeteo_aq import OpenMeteoAQProvider
 from app.providers.dpcc import DPCCProvider
 from app.providers.waqi import WAQIProvider
 from app.models.station import Station
-from app.services.aqi import calculate_naqi
+from app.services.aqi import calculate_naqi, calculate_epa_aqi
 
 _cpcb_provider: Optional[CPCBProvider] = None
 _imd_provider: Optional[IMDWeatherProvider] = None
@@ -83,6 +83,21 @@ class IngestionService:
         aqi_info = calculate_naqi(measurements)
         timestamp = merged.get("timestamp", datetime.now())
         clean_id = station.id.lower().replace("_", "-")
+
+        epa_val = merged.get("live_aqi") or merged.get("live_epa_aqi")
+        if epa_val is not None:
+            epa_info = calculate_epa_aqi(measurements.get("pm25"))
+            epa_aqi = int(epa_val)
+            epa_cat = epa_info.get("category")
+            epa_col = epa_info.get("color")
+        elif measurements.get("pm25") is not None:
+            epa_info = calculate_epa_aqi(measurements.get("pm25"))
+            epa_aqi = epa_info.get("aqi")
+            epa_cat = epa_info.get("category")
+            epa_col = epa_info.get("color")
+        else:
+            epa_aqi, epa_cat, epa_col = None, None, None
+
         return {
             "station_id": station.id,
             "station_name": station.name,
@@ -100,7 +115,10 @@ class IngestionService:
             "prominent_pollutant": aqi_info.get("prominent_pollutant"),
             "source": merged.get("source", "UNKNOWN"),
             "mode": self.settings.APP_MODE,
-            "live_epa_aqi": merged.get("live_aqi"),
+            "epa_aqi": epa_aqi,
+            "epa_category": epa_cat,
+            "epa_color": epa_col,
+            "live_epa_aqi": epa_aqi,
             "aqicn_url": merged.get("aqicn_url") or f"https://aqicn.org/city/delhi/{clean_id}/",
             "aqicn_match_station": merged.get("aqicn_match_station") or f"{station.name}, Delhi",
             "aqicn_synced_time": merged.get("aqicn_synced_time") or datetime.now().strftime("%I:%M %p"),

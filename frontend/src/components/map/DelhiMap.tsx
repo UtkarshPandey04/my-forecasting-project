@@ -99,7 +99,7 @@ const getMetricValueAndColor = (station: StationWithObs, metric: MapMetric, aqiS
 
   if (metric === 'aqi') {
     if (aqiStandard === 'epa') {
-      const epaAqi = obs.epa_aqi ?? (obs.pollutants?.pm25 != null ? calculateEpaAqiFromPm25(obs.pollutants.pm25).aqi : obs.aqi);
+      const epaAqi = obs.live_epa_aqi ?? obs.epa_aqi ?? (obs.pollutants?.pm25 != null ? calculateEpaAqiFromPm25(obs.pollutants.pm25).aqi : obs.aqi);
       const epaColor = obs.epa_color ?? (obs.pollutants?.pm25 != null ? calculateEpaAqiFromPm25(obs.pollutants.pm25).color : getAqiColor(epaAqi));
       return { displayValue: epaAqi !== null && epaAqi !== undefined ? epaAqi : '--', color: epaColor };
     }
@@ -533,7 +533,7 @@ export default function DelhiMap({
                 const pm25 = hoveredStation.observation?.pollutants?.pm25 ?? 60.0;
                 const epaRes = calculateEpaAqiFromPm25(pm25);
                 const cpcbAqi = hoveredStation.observation?.aqi ?? 100;
-                const activeAqi = aqiStandard === 'epa' ? (hoveredStation.observation?.epa_aqi ?? epaRes.aqi) : cpcbAqi;
+                const activeAqi = aqiStandard === 'epa' ? (hoveredStation.observation?.live_epa_aqi ?? hoveredStation.observation?.epa_aqi ?? epaRes.aqi) : cpcbAqi;
                 const activeColor = aqiStandard === 'epa' ? (hoveredStation.observation?.epa_color ?? epaRes.color) : getAqiColor(cpcbAqi);
                 const activeLabel = aqiStandard === 'epa' ? 'US EPA' : 'CPCB';
                 return (

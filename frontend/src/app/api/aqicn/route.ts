@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { FALLBACK_STATIONS } from '@/lib/fallbackData';
 
 interface AqicnStationRaw {
   uid: string;
@@ -9,6 +10,7 @@ interface AqicnStationRaw {
   time: string;
   utime?: string;
   url?: string;
+  station_id?: string;
 }
 
 interface CacheState {
@@ -62,13 +64,43 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return R * c;
 }
 
+const DIRECT_AQICN_URLS: Record<string, string> = {
+  anand_vihar: 'https://aqicn.org/city/delhi/anand-vihar/',
+  punjabi_bagh: 'https://aqicn.org/city/delhi/punjabi-bagh/',
+  mandir_marg: 'https://aqicn.org/city/delhi/mandir-marg/',
+  rk_puram: 'https://aqicn.org/city/delhi/r.k.-puram/',
+  wazirpur: 'https://aqicn.org/city/delhi/delhi-institute-of-tool-engineering--wazirpur/',
+  jahangirpuri: 'https://aqicn.org/city/delhi/iti-jahangirpuri/',
+  pusa_dpcc: 'https://aqicn.org/city/delhi/pusa/',
+  pusa_imd: 'https://aqicn.org/city/delhi/pusa/',
+  shadipur: 'https://aqicn.org/city/delhi/pusa/',
+  rohini: 'https://aqicn.org/city/delhi/punjabi-bagh/',
+  ashok_vihar: 'https://aqicn.org/city/delhi/punjabi-bagh/',
+  mundka: 'https://aqicn.org/city/delhi/punjabi-bagh/',
+  bawana: 'https://aqicn.org/city/delhi/iti-jahangirpuri/',
+  alipur: 'https://aqicn.org/city/delhi/iti-jahangirpuri/',
+  narela: 'https://aqicn.org/city/delhi/iti-jahangirpuri/',
+  patparganj: 'https://aqicn.org/city/delhi/anand-vihar/',
+  major_dhyan_chand: 'https://aqicn.org/city/delhi/mandir-marg/',
+  sonia_vihar: 'https://aqicn.org/city/delhi/anand-vihar/',
+  jln_stadium: 'https://aqicn.org/city/delhi/r.k.-puram/',
+  nehru_nagar: 'https://aqicn.org/city/delhi/r.k.-puram/',
+  okhla_phase2: 'https://aqicn.org/city/delhi/r.k.-puram/',
+  dwarka_sec8: 'https://aqicn.org/city/delhi/pusa/',
+};
+
 async function scrapeAqicnCluster(): Promise<{ stations: Record<string, AqicnStationRaw>; details: Record<string, any> }> {
   const sources = [
     { url: 'https://aqicn.org/city/delhi/anand-vihar/', defaultSlug: 'anand-vihar' },
-    { url: 'https://aqicn.org/city/delhi/punjabi-bagh/', defaultSlug: 'punjabi-bagh' }
+    { url: 'https://aqicn.org/city/delhi/punjabi-bagh/', defaultSlug: 'punjabi-bagh' },
+    { url: 'https://aqicn.org/city/delhi/mandir-marg/', defaultSlug: 'mandir-marg' },
+    { url: 'https://aqicn.org/city/delhi/r.k.-puram/', defaultSlug: 'r.k.-puram' },
+    { url: 'https://aqicn.org/city/delhi/delhi-institute-of-tool-engineering--wazirpur/', defaultSlug: 'delhi-institute-of-tool-engineering--wazirpur' },
+    { url: 'https://aqicn.org/city/delhi/iti-jahangirpuri/', defaultSlug: 'iti-jahangirpuri' },
+    { url: 'https://aqicn.org/city/delhi/pusa/', defaultSlug: 'pusa' }
   ];
 
-  const stations: Record<string, AqicnStationRaw> = {};
+  const rawStations: Record<string, AqicnStationRaw> = {};
   const details: Record<string, any> = {};
 
   await Promise.allSettled(
@@ -76,7 +108,8 @@ async function scrapeAqicnCluster(): Promise<{ stations: Record<string, AqicnSta
       try {
         const res = await fetch(url, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
           },
           next: { revalidate: 180 }
         });
@@ -104,7 +137,7 @@ async function scrapeAqicnCluster(): Promise<{ stations: Record<string, AqicnSta
               const uid = String(it.x);
               const aqiVal = parseInt(it.aqi, 10);
               if (!isNaN(aqiVal) && it.g && Array.isArray(it.g) && it.g.length >= 2) {
-                stations[uid] = {
+                rawStations[uid] = {
                   uid,
                   name: it.name || 'Delhi Monitor',
                   aqi: aqiVal,
@@ -125,6 +158,46 @@ async function scrapeAqicnCluster(): Promise<{ stations: Record<string, AqicnSta
       }
     })
   );
+
+  const rawList = Object.values(rawStations);
+  const stations: Record<string, AqicnStationRaw> = { ...rawStations };
+
+  // Map all FALLBACK_STATIONS directly to the best scraped station
+  if (rawList.length > 0) {
+    for (const s of FALLBACK_STATIONS) {
+      let best: AqicnStationRaw | null = null;
+      let minDist = Infinity;
+      const sNameNorm = s.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      // 1. Direct name match
+      for (const sc of rawList) {
+        const scNameNorm = sc.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (scNameNorm.includes(sNameNorm) || sNameNorm.includes(scNameNorm)) {
+          best = sc;
+          break;
+        }
+      }
+
+      // 2. Spatial nearest monitor
+      if (!best) {
+        for (const sc of rawList) {
+          const d = haversineKm(s.latitude, s.longitude, sc.lat, sc.lon);
+          if (d < minDist) {
+            minDist = d;
+            best = sc;
+          }
+        }
+      }
+
+      if (best) {
+        stations[s.id] = {
+          ...best,
+          station_id: s.id,
+          url: DIRECT_AQICN_URLS[s.id] || best.url || 'https://aqicn.org/city/delhi/'
+        };
+      }
+    }
+  }
 
   return { stations, details };
 }

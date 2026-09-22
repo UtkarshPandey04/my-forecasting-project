@@ -29,6 +29,13 @@ class ObservationResponse(BaseModel):
     prominent_pollutant: Optional[str] = None
     source: str
     mode: str
+    epa_aqi: Optional[int] = None
+    epa_category: Optional[str] = None
+    epa_color: Optional[str] = None
+    live_epa_aqi: Optional[int] = None
+    aqicn_url: Optional[str] = None
+    aqicn_match_station: Optional[str] = None
+    aqicn_synced_time: Optional[str] = None
 
 class CurrentObservationsResponse(BaseModel):
     observations: List[ObservationResponse]

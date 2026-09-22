@@ -70,6 +70,11 @@ class WAQIProvider(AQDataProvider):
         urls = [
             ("https://aqicn.org/city/delhi/anand-vihar/", "anand-vihar"),
             ("https://aqicn.org/city/delhi/punjabi-bagh/", "punjabi-bagh"),
+            ("https://aqicn.org/city/delhi/mandir-marg/", "mandir-marg"),
+            ("https://aqicn.org/city/delhi/r.k.-puram/", "r.k.-puram"),
+            ("https://aqicn.org/city/delhi/delhi-institute-of-tool-engineering--wazirpur/", "delhi-institute-of-tool-engineering--wazirpur"),
+            ("https://aqicn.org/city/delhi/iti-jahangirpuri/", "iti-jahangirpuri"),
+            ("https://aqicn.org/city/delhi/pusa/", "pusa"),
         ]
 
         scraped_stations: Dict[str, Dict] = {}
@@ -227,7 +232,8 @@ class WAQIProvider(AQDataProvider):
             pm10_val = pollutants_map.get("pm10") or round(derived_pm25 * 1.55, 1)
             no2_val = pollutants_map.get("no2") or (6.0 if clean_id == "anand_vihar" else 14.0)
             so2_val = pollutants_map.get("so2") or (6.0 if clean_id == "anand_vihar" else 8.0)
-            co_val = pollutants_map.get("co") or (1.4 if clean_id == "anand_vihar" else 1.1)
+            co_raw = pollutants_map.get("co")
+            co_val = round(co_raw / 10.0, 2) if co_raw is not None and co_raw > 4.0 else (float(co_raw) if co_raw is not None else 1.1)
             o3_val = pollutants_map.get("o3") or (18.0 if clean_id == "anand_vihar" else 24.0)
             temp_val = pollutants_map.get("t") or 34.0
             humidity_val = pollutants_map.get("h") or 50.0

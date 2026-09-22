@@ -74,3 +74,44 @@ def calculate_naqi(measurements: Dict[str, float]) -> Dict[str, Any]:
         "sub_indices": sub_indices,
         "status": "success"
     }
+
+
+EPA_PM25_BREAKPOINTS = [
+    (0.0, 12.0, 0, 50, "Good", "#00e400"),
+    (12.1, 35.4, 51, 100, "Moderate", "#ffff00"),
+    (35.5, 55.4, 101, 150, "Unhealthy for Sensitive Groups", "#ff7e00"),
+    (55.5, 150.4, 151, 200, "Unhealthy", "#cc0033"),
+    (150.5, 250.4, 201, 300, "Very Unhealthy", "#8f3f97"),
+    (250.5, 500.4, 301, 500, "Hazardous", "#7e0023"),
+]
+
+
+def calculate_epa_aqi(pm25: Optional[float]) -> Dict[str, Any]:
+    """Calculate US EPA AQI from PM2.5 (ug/m3) concentration."""
+    if pm25 is None:
+        return {"aqi": None, "category": None, "color": None}
+    c = round(float(pm25), 1)
+    for clo, chi, ilo, ihi, cat, col in EPA_PM25_BREAKPOINTS:
+        if clo <= c <= chi:
+            aqi = round(((ihi - ilo) / (chi - clo)) * (c - clo) + ilo)
+            return {"aqi": aqi, "category": cat, "color": col}
+    if c > 500.4:
+        return {"aqi": 500, "category": "Hazardous", "color": "#7e0023"}
+    return {"aqi": 0, "category": "Good", "color": "#00e400"}
+
+
+def calculate_pm25_from_epa_aqi(aqi: float) -> float:
+    """Invert US EPA AQI to PM2.5 (ug/m3)."""
+    if aqi <= 50:
+        return round((aqi / 50.0) * 12.0, 1)
+    elif aqi <= 100:
+        return round(((aqi - 51.0) / 49.0) * (35.4 - 12.1) + 12.1, 1)
+    elif aqi <= 150:
+        return round(((aqi - 101.0) / 49.0) * (55.4 - 35.5) + 35.5, 1)
+    elif aqi <= 200:
+        return round(((aqi - 151.0) / 49.0) * (150.4 - 55.5) + 55.5, 1)
+    elif aqi <= 300:
+        return round(((aqi - 201.0) / 99.0) * (250.4 - 150.5) + 150.5, 1)
+    else:
+        return round(((aqi - 301.0) / 199.0) * (500.4 - 250.5) + 250.5, 1)
+

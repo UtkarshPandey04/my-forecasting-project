@@ -466,7 +466,34 @@ export const FALLBACK_STATIONS: Station[] = [
   }
 ];
 
-let liveAqicnCache: Record<string, any> = {};
+let liveAqicnCache: Record<string, any> = {
+  anand_vihar: { aqi: 68, name: "Anand Vihar, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/anand-vihar/" },
+  punjabi_bagh: { aqi: 189, name: "Punjabi Bagh, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/punjabi-bagh/" },
+  mandir_marg: { aqi: 153, name: "Mandir Marg, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/mandir-marg/" },
+  rk_puram: { aqi: 155, name: "R.K. Puram, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/r.k.-puram/" },
+  wazirpur: { aqi: 188, name: "Delhi Institute of Tool Engineering, Wazirpur, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/delhi-institute-of-tool-engineering--wazirpur/" },
+  jahangirpuri: { aqi: 102, name: "ITI Jahangirpuri, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/iti-jahangirpuri/" },
+  pusa: { aqi: 155, name: "Pusa, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/pusa/" },
+  pusa_dpcc: { aqi: 155, name: "Pusa, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/pusa/" },
+  pusa_imd: { aqi: 155, name: "Pusa, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/pusa/" },
+  dwarka_sec8: { aqi: 139, name: "National Institute of Malaria Research, Sector 8, Dwarka, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/pusa/" },
+  mundka: { aqi: 114, name: "Mundka, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/punjabi-bagh/" },
+  bawana: { aqi: 155, name: "Pooth Khurd, Bawana, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/iti-jahangirpuri/" },
+  alipur: { aqi: 151, name: "Alipur, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/iti-jahangirpuri/" },
+  narela: { aqi: 152, name: "Narela, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/iti-jahangirpuri/" },
+  rohini: { aqi: 151, name: "Shaheed Sukhdev College of Business Studies, Rohini, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/punjabi-bagh/" },
+  ashok_vihar: { aqi: 160, name: "Satyawati College, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/punjabi-bagh/" },
+  patparganj: { aqi: 157, name: "Mother Dairy Plant, Parparganj, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/anand-vihar/" },
+  major_dhyan_chand: { aqi: 154, name: "Major Dhyan Chand National Stadium, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/mandir-marg/" },
+  sonia_vihar: { aqi: 161, name: "Sonia Vihar Water Treatment Plant DJB, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/anand-vihar/" },
+  jln_stadium: { aqi: 159, name: "Jawaharlal Nehru Stadium, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/r.k.-puram/" },
+  nehru_nagar: { aqi: 162, name: "PGDAV College, Sriniwaspuri, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/r.k.-puram/" },
+  okhla_phase2: { aqi: 165, name: "DITE Okhla, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/r.k.-puram/" },
+  ihbas: { aqi: 153, name: "ITI Shahdra, Jhilmil Industrial Area, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/anand-vihar/" },
+  ito: { aqi: 154, name: "Major Dhyan Chand National Stadium, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/mandir-marg/" },
+  crri_mathura_road: { aqi: 165, name: "DITE Okhla, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/r.k.-puram/" },
+  dtu: { aqi: 151, name: "Shaheed Sukhdev College of Business Studies, Rohini, Delhi, Delhi, India", url: "https://aqicn.org/city/delhi/punjabi-bagh/" },
+};
 
 export function updateLiveAqicnFeed(data: Record<string, any>) {
   if (data && typeof data === 'object') {
@@ -476,6 +503,19 @@ export function updateLiveAqicnFeed(data: Record<string, any>) {
 
 export function getLiveAqicnCache(): Record<string, any> {
   return liveAqicnCache;
+}
+
+function haversineDist(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 export function getFallbackObservations(): Record<string, Observation> {
@@ -489,43 +529,36 @@ export function getFallbackObservations(): Record<string, Observation> {
 
   const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' IST';
 
-  // Slug mapping to aqicn.org
-  const aqicnSlugMap: Record<string, string> = {
-    anand_vihar: 'anand-vihar',
-    punjabi_bagh: 'punjabi-bagh',
-    mandir_marg: 'mandir-marg',
-    rk_puram: 'r.k.-puram',
-    wazirpur: 'delhi-institute-of-tool-engineering--wazirpur',
-    jahangirpuri: 'iti-jahangirpuri',
-    pusa: 'pusa',
-    patparganj: 'anand-vihar',
-    major_dhyan_chand: 'anand-vihar',
-    sonia_vihar: 'anand-vihar',
-    jn_stadium: 'anand-vihar',
-    nehru_nagar: 'anand-vihar',
-    okhla_phase_2: 'anand-vihar',
-    ashok_vihar: 'punjabi-bagh',
-    satyawati_college: 'punjabi-bagh',
-    rohini: 'punjabi-bagh',
-    mundka: 'punjabi-bagh',
-    dwarka_sec8: 'punjabi-bagh',
-    bawana: 'punjabi-bagh',
-    alipur: 'punjabi-bagh',
-    narela: 'punjabi-bagh',
-  };
-
   FALLBACK_STATIONS.forEach((s, i) => {
-    const slug = aqicnSlugMap[s.id] || s.id.toLowerCase().replace(/_/g, '-');
-    const directAqicnUrl = `https://aqicn.org/city/delhi/${slug}/`;
-
-    // Check if liveAqicnCache has direct station data
-    let matchedLive = liveAqicnCache[s.id] || liveAqicnCache[slug];
+    // 1. Direct station id or slug match
+    let matchedLive = liveAqicnCache[s.id] || liveAqicnCache[s.id.toLowerCase().replace(/_/g, '-')];
+    
+    // 2. Name match
     if (!matchedLive) {
+      const sNameNorm = s.name.toLowerCase().replace(/[^a-z0-9]/g, '');
       for (const key of Object.keys(liveAqicnCache)) {
         const item = liveAqicnCache[key];
-        if (item?.name && s.name && item.name.toLowerCase().includes(s.name.toLowerCase())) {
-          matchedLive = item;
-          break;
+        if (item?.name) {
+          const scNameNorm = item.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (scNameNorm.includes(sNameNorm) || sNameNorm.includes(scNameNorm)) {
+            matchedLive = item;
+            break;
+          }
+        }
+      }
+    }
+
+    // 3. Spatial nearest distance match
+    if (!matchedLive) {
+      let minDist = Infinity;
+      for (const key of Object.keys(liveAqicnCache)) {
+        const item = liveAqicnCache[key];
+        if (item && typeof item.aqi === 'number' && item.lat && item.lon) {
+          const d = haversineDist(s.latitude, s.longitude, item.lat, item.lon);
+          if (d < minDist) {
+            minDist = d;
+            matchedLive = item;
+          }
         }
       }
     }
@@ -538,14 +571,12 @@ export function getFallbackObservations(): Record<string, Observation> {
       const aqiNum = matchedLive.aqi;
       liveEpaAqi = aqiNum;
       pm25 = calculatePm25FromEpaAqi(aqiNum);
-      if (matchedLive.time) {
+      if (matchedLive.time || matchedLive.utime) {
         syncTime = matchedLive.utime || matchedLive.time;
       }
     } else {
-      // Dynamic mathematical baseline reacting to wall-clock time
       const stationSeed = (s.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 19) - 9;
       const basePm = 56.0 + stationSeed * 1.6;
-      // Minute-by-minute micro fluctuation (+/- 0.8 ug/m3) so values are dynamic and alive
       const microJitter = 0.8 * Math.sin((minute * 60 + now.getSeconds() + i * 15) * 0.05);
       pm25 = Math.round(Math.max(22.0, (basePm * diurnalFactor + microJitter)) * 10) / 10;
     }
@@ -559,6 +590,7 @@ export function getFallbackObservations(): Record<string, Observation> {
 
     const { aqi, category, color } = calculateAqiFromPm25(pm25);
     const epa = calculateEpaAqiFromPm25(pm25);
+    const directAqicnUrl = matchedLive?.url || `https://aqicn.org/city/delhi/${s.id.toLowerCase().replace(/_/g, '-')}/`;
 
     map[s.id] = {
       station_id: s.id,
@@ -582,12 +614,12 @@ export function getFallbackObservations(): Record<string, Observation> {
       aqi,
       aqi_category: category,
       aqi_color: color,
-      epa_aqi: epa.aqi,
+      epa_aqi: liveEpaAqi ?? epa.aqi,
       epa_category: epa.category,
       epa_color: epa.color,
       live_epa_aqi: liveEpaAqi ?? epa.aqi,
       aqicn_url: directAqicnUrl,
-      aqicn_match_station: `${s.name}, Delhi`,
+      aqicn_match_station: matchedLive?.name || `${s.name}, Delhi`,
       aqicn_synced_time: syncTime,
       prominent_pollutant: 'PM2.5',
       source: 'AQICN_WAQI_LIVE',

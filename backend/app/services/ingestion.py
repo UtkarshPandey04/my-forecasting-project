@@ -134,15 +134,28 @@ class IngestionService:
         stations = query.filter(Station.is_active == True).all()
 
         if self.settings.APP_MODE == "LIVE" and hasattr(self.aq_provider, "_fetch_records"):
-            await self.aq_provider._fetch_records()
-
-        if self.settings.APP_MODE == "LIVE" and hasattr(self.weather_provider, "fetch_current"):
             try:
-                await self.weather_provider.fetch_current(28.61, 77.21)
+                await asyncio.wait_for(self.aq_provider._fetch_records(), timeout=1.5)
             except Exception:
                 pass
 
-        semaphore = asyncio.Semaphore(8)
+        central_weather = {}
+        if self.settings.APP_MODE == "LIVE" and hasattr(self.weather_provider, "fetch_current"):
+            try:
+                central_weather = await asyncio.wait_for(
+                    self.weather_provider.fetch_current(28.61, 77.21),
+                    timeout=2.0
+                ) or {}
+            except Exception:
+                central_weather = {}
+
+        if self.waqi_provider and hasattr(self.waqi_provider, "_fetch_aqicn_network"):
+            try:
+                await asyncio.wait_for(self.waqi_provider._fetch_aqicn_network(), timeout=3.0)
+            except Exception:
+                pass
+
+        semaphore = asyncio.Semaphore(16)
 
         async def load_station(station: Station) -> Optional[Dict]:
             async with semaphore:
@@ -164,8 +177,11 @@ class IngestionService:
                     if not aq_data or aq_data.get("pm25") is None:
                         if self.dpcc_provider:
                             try:
-                                dpcc_data = await self.dpcc_provider.fetch_current(
-                                    station.id, station.latitude, station.longitude
+                                dpcc_data = await asyncio.wait_for(
+                                    self.dpcc_provider.fetch_current(
+                                        station.id, station.latitude, station.longitude
+                                    ),
+                                    timeout=0.8
                                 )
                                 if dpcc_data and dpcc_data.get("pm25") is not None:
                                     aq_data = dpcc_data
@@ -183,12 +199,15 @@ class IngestionService:
                         except Exception:
                             pass
 
-                    # 4. Quaternary Source: Open-Meteo Air Quality / CAMS model
+                    # 3. Open-Meteo Air Quality / CAMS model
                     if not aq_data or aq_data.get("pm25") is None:
                         if self.openmeteo_aq:
                             try:
-                                live_aq = await self.openmeteo_aq.fetch_current(
-                                    station.id, station.latitude, station.longitude
+                                live_aq = await asyncio.wait_for(
+                                    self.openmeteo_aq.fetch_current(
+                                        station.id, station.latitude, station.longitude
+                                    ),
+                                    timeout=1.0
                                 )
                                 if live_aq:
                                     if not aq_data:
@@ -222,14 +241,7 @@ class IngestionService:
                 if self.settings.APP_MODE == "DEMO" or not aq_data:
                     merged = aq_data or {}
                 else:
-                    weather_data = {}
-                    try:
-                        weather_data = await self.weather_provider.fetch_current(
-                            station.latitude, station.longitude
-                        ) or {}
-                    except Exception:
-                        weather_data = {}
-
+                    weather_data = central_weather or {}
                     weather_fields = {
                         key: weather_data.get(key)
                         for key in (

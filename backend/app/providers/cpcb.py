@@ -17,7 +17,7 @@ class CPCBProvider(AQDataProvider):
         if not self.api_key:
             return self._records_cache or []
         try:
-            timeout = httpx.Timeout(connect=5.0, read=15.0, write=5.0, pool=5.0)
+            timeout = httpx.Timeout(connect=2.0, read=3.0, write=2.0, pool=2.0)
             async with httpx.AsyncClient(
                 timeout=timeout,
                 trust_env=False,
@@ -42,7 +42,7 @@ class CPCBProvider(AQDataProvider):
             if self._records_cache:
                 self._cache_expires_at = datetime.now() + timedelta(minutes=5)
                 return self._records_cache
-            self._cache_expires_at = datetime.now() + timedelta(minutes=2)
+            self._cache_expires_at = datetime.now() + timedelta(minutes=5)
             return []
         
     async def fetch_current(self, station_id: str, latitude: float = 0.0, longitude: float = 0.0) -> Optional[Dict]:
@@ -137,8 +137,10 @@ class CPCBProvider(AQDataProvider):
     async def check_connection(self) -> bool:
         if not self.api_key:
             return False
+        if self._records_cache:
+            return True
         try:
-            timeout = httpx.Timeout(connect=3.0, read=12.0, write=3.0, pool=3.0)
+            timeout = httpx.Timeout(connect=1.5, read=2.0, write=1.5, pool=1.5)
             async with httpx.AsyncClient(
                 timeout=timeout,
                 trust_env=False,

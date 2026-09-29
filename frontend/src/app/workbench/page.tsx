@@ -16,6 +16,17 @@ import {
   BlendedForecastResponse
 } from '@/lib/types';
 import { calculateAqiFromPm25, calculateEpaAqiFromPm25 } from '@/lib/naqi';
+import {
+  FALLBACK_STATIONS,
+  getFallbackObservations,
+  FALLBACK_ATMOSPHERIC_REGIME,
+  getFallbackDerivedIndices,
+  FALLBACK_ACTIVE_FIRES,
+  FALLBACK_TRANSPORT_CORRIDORS,
+  generateFallbackForecast,
+  generateFallbackBlendedForecast,
+  generateFallbackExplanation
+} from '@/lib/fallbackData';
 
 import { LayoutDashboard, TrendingUp, Recycle, Siren, Menu, X } from 'lucide-react';
 import WorkbenchHeader from '@/components/workbench/WorkbenchHeader';
@@ -64,22 +75,22 @@ export default function WorkbenchPage() {
   }, []);
 
 
-  // Core Data States
-  const [stations, setStations] = useState<Station[]>([]);
-  const [observations, setObservations] = useState<Record<string, Observation>>({});
+  // Core Data States (Pre-seeded with calibrated data to ensure instant UI rendering)
+  const [stations, setStations] = useState<Station[]>(FALLBACK_STATIONS);
+  const [observations, setObservations] = useState<Record<string, Observation>>(getFallbackObservations());
   const [selectedStationId, setSelectedStationId] = useState<string>('anand_vihar');
-  const [forecast, setForecast] = useState<ForecastResponse | null>(null);
-  const [blendedForecast, setBlendedForecast] = useState<BlendedForecastResponse | null>(null);
+  const [forecast, setForecast] = useState<ForecastResponse | null>(() => generateFallbackForecast('anand_vihar'));
+  const [blendedForecast, setBlendedForecast] = useState<BlendedForecastResponse | null>(() => generateFallbackBlendedForecast('anand_vihar'));
   const [health, setHealth] = useState<HealthResponse | null>(null);
 
   // Atmospheric Intelligence States
-  const [regime, setRegime] = useState<AtmosphericRegime | null>(null);
-  const [indices, setIndices] = useState<DerivedIndices | null>(null);
-  const [activeFires, setActiveFires] = useState<ActiveFirePoint[]>([]);
-  const [transportCorridors, setTransportCorridors] = useState<TransportCorridor[]>([]);
+  const [regime, setRegime] = useState<AtmosphericRegime | null>(FALLBACK_ATMOSPHERIC_REGIME);
+  const [indices, setIndices] = useState<DerivedIndices | null>(() => getFallbackDerivedIndices('anand_vihar'));
+  const [activeFires, setActiveFires] = useState<ActiveFirePoint[]>(FALLBACK_ACTIVE_FIRES.fires);
+  const [transportCorridors, setTransportCorridors] = useState<TransportCorridor[]>(FALLBACK_TRANSPORT_CORRIDORS.corridors);
   const [dominantWindDir, setDominantWindDir] = useState<number>(300);
   const [windSpeed, setWindSpeed] = useState<number>(3.2);
-  const [explanation, setExplanation] = useState<ForecastExplanation | null>(null);
+  const [explanation, setExplanation] = useState<ForecastExplanation | null>(() => generateFallbackExplanation('anand_vihar'));
 
   // UI State
   const [aqiStandard, setAqiStandard] = useState<'epa' | 'cpcb'>('epa');
@@ -87,7 +98,7 @@ export default function WorkbenchPage() {
   const [askModalOpen, setAskModalOpen] = useState<boolean>(false);
   const [dataSourcesModalOpen, setDataSourcesModalOpen] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [loadingForecast, setLoadingForecast] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
@@ -198,7 +209,6 @@ export default function WorkbenchPage() {
   // Initial Load
   const fetchAllData = async () => {
     try {
-      setLoading(true);
       const [
         stationsRes,
         healthRes,
@@ -207,7 +217,7 @@ export default function WorkbenchPage() {
         firesRes,
         transportRes
       ] = await Promise.all([
-        api.getStations(),
+        api.getStations().catch(() => null),
         api.getHealth().catch(() => null),
         api.getAtmosphericRegime().catch(() => null),
         api.getDerivedIndices('anand_vihar').catch(() => null),
@@ -215,13 +225,13 @@ export default function WorkbenchPage() {
         api.getTransportCorridors().catch(() => null),
       ]);
 
-      setStations(stationsRes.stations || []);
+      if (stationsRes?.stations?.length) setStations(stationsRes.stations);
       if (healthRes) setHealth(healthRes);
       if (regimeRes) setRegime(regimeRes);
       if (indicesRes) setIndices(indicesRes);
-      if (firesRes) setActiveFires(firesRes.fires || []);
+      if (firesRes?.fires) setActiveFires(firesRes.fires);
       if (transportRes) {
-        setTransportCorridors(transportRes.corridors || []);
+        if (transportRes.corridors) setTransportCorridors(transportRes.corridors);
         setDominantWindDir(transportRes.dominant_wind_direction || 300);
         setWindSpeed(transportRes.wind_speed_ms || 3.2);
       }

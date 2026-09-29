@@ -30,6 +30,12 @@ if not exist "frontend\node_modules" (
 
 echo [3/3] Launching Backend & Frontend services...
 
+:: Free up ports 8000 & 3000 if previously occupied to avoid port collision
+powershell -NoProfile -Command ^
+  "$ports = @(8000, 3000);" ^
+  "$pids = Get-NetTCPConnection -LocalPort $ports -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique;" ^
+  "if ($pids) { foreach ($pid in $pids) { try { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue; } catch {} } }"
+
 :: Start Backend (FastAPI on Port 8000)
 start "AeroSense-Backend" /min cmd /c "cd /d %ROOT_DIR% && backend\venv\Scripts\python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000"
 

@@ -58,7 +58,7 @@ class WAQIProvider(AQDataProvider):
         )
 
     async def _fetch_aqicn_network(self) -> Dict[str, Dict]:
-        """Scrapes live station clusters directly from aqicn.org."""
+        """Scrapes live station clusters directly from aqicn.org concurrently under lock."""
         global _network_cache, _details_cache
 
         async with _cache_lock:
@@ -67,29 +67,26 @@ class WAQIProvider(AQDataProvider):
                 if datetime.now() < exp and len(cached_data) > 0:
                     return cached_data
 
-        urls = [
-            ("https://aqicn.org/city/delhi/anand-vihar/", "anand-vihar"),
-            ("https://aqicn.org/city/delhi/punjabi-bagh/", "punjabi-bagh"),
-            ("https://aqicn.org/city/delhi/mandir-marg/", "mandir-marg"),
-            ("https://aqicn.org/city/delhi/r.k.-puram/", "r.k.-puram"),
-            ("https://aqicn.org/city/delhi/delhi-institute-of-tool-engineering--wazirpur/", "delhi-institute-of-tool-engineering--wazirpur"),
-            ("https://aqicn.org/city/delhi/iti-jahangirpuri/", "iti-jahangirpuri"),
-            ("https://aqicn.org/city/delhi/pusa/", "pusa"),
-        ]
+            urls = [
+                ("https://aqicn.org/city/delhi/anand-vihar/", "anand-vihar"),
+                ("https://aqicn.org/city/delhi/punjabi-bagh/", "punjabi-bagh"),
+                ("https://aqicn.org/city/delhi/mandir-marg/", "mandir-marg"),
+                ("https://aqicn.org/city/delhi/r.k.-puram/", "r.k.-puram"),
+                ("https://aqicn.org/city/delhi/delhi-institute-of-tool-engineering--wazirpur/", "delhi-institute-of-tool-engineering--wazirpur"),
+                ("https://aqicn.org/city/delhi/iti-jahangirpuri/", "iti-jahangirpuri"),
+                ("https://aqicn.org/city/delhi/pusa/", "pusa"),
+            ]
 
-        scraped_stations: Dict[str, Dict] = {}
-        timeout = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0)
+            scraped_stations: Dict[str, Dict] = {}
+            timeout = httpx.Timeout(connect=2.0, read=4.0, write=2.0, pool=3.0)
 
-        async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-            for url, default_slug in urls:
+            async def fetch_one(client: httpx.AsyncClient, url: str, default_slug: str):
                 try:
                     resp = await client.get(url, headers={"User-Agent": self._user_agent})
                     if resp.status_code != 200:
-                        continue
-
+                        return
                     html = resp.text
 
-                    # Extract graph model for detailed pollutants
                     graph_match = re.search(r"setWidgetAqiGraphModel\((\{.*?\})\);", html, re.DOTALL)
                     if graph_match:
                         try:
@@ -100,7 +97,6 @@ class WAQIProvider(AQDataProvider):
                         except Exception:
                             pass
 
-                    # Extract station cluster array
                     st_match = re.search(r"stations=(\[\{.*?\}\]);", html, re.DOTALL)
                     if st_match:
                         try:
@@ -130,13 +126,21 @@ class WAQIProvider(AQDataProvider):
                 except Exception as exc:
                     self.last_error = str(exc)
 
-        async with _cache_lock:
+            try:
+                async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
+                    await asyncio.gather(
+                        *[fetch_one(client, url, slug) for url, slug in urls],
+                        return_exceptions=True
+                    )
+            except Exception:
+                pass
+
             if scraped_stations:
                 _network_cache = (datetime.now() + _CACHE_TTL, scraped_stations)
             elif _network_cache is not None:
                 return _network_cache[1]
 
-        return scraped_stations
+            return scraped_stations
 
     async def fetch_current(
         self,

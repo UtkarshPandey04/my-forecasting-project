@@ -56,7 +56,7 @@ import {
 
 import { calculateAqiFromPm25, calculateEpaAqiFromPm25, calculatePm25FromEpaAqi } from './naqi';
 
-const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
 
 function buildUrl(endpoint: string): string {
@@ -264,7 +264,7 @@ function getFallbackForEndpoint<T>(endpoint: string): T {
 async function fetchAPI<T>(endpoint: string): Promise<T> {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 9000);
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
     const url = buildUrl(endpoint);
     const res = await fetch(url, {
       cache: 'no-store',
@@ -438,15 +438,14 @@ export const api = {
   getObservations: async (stationId?: string) => {
     const params = stationId ? `?station_id=${stationId}` : '';
     if (typeof window !== 'undefined') {
-      try {
-        const res = await fetch('/api/aqicn');
-        if (res.ok) {
-          const json = await res.json();
+      fetch('/api/aqicn')
+        .then(res => res.ok ? res.json() : null)
+        .then(json => {
           if (json?.stations) {
             updateLiveAqicnFeed(json.stations);
           }
-        }
-      } catch (_) {}
+        })
+        .catch(() => {});
     }
     const result = await fetchAPI<{ observations: Observation[]; mode: string; last_updated: string | null }>(`/api/v1/observations/current${params}`);
     const liveCache = getLiveAqicnCache();

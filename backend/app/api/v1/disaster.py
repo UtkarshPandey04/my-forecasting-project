@@ -38,24 +38,40 @@ async def get_disaster_risk(
     db: Session = Depends(get_db_session),
     settings: Settings = Depends(get_app_settings),
 ):
+    import asyncio
     wx = _weather(settings)
     firms = _firms(settings)
-    meteo = await wx.fetch_current(28.6139, 77.2090) or {}
+    ingestion = IngestionService(db, settings)
+
+    async def fetch_meteo():
+        try:
+            return await asyncio.wait_for(wx.fetch_current(28.6139, 77.2090), timeout=3.0) or {}
+        except Exception:
+            return {}
+
+    async def fetch_fires():
+        try:
+            return await asyncio.wait_for(firms.fetch_active_fires(), timeout=3.0) or []
+        except Exception:
+            return []
+
+    async def fetch_obs():
+        try:
+            return await asyncio.wait_for(ingestion.get_current_observations("anand_vihar"), timeout=3.0) or []
+        except Exception:
+            return []
+
+    meteo_res, fires_res, obs_res = await asyncio.gather(
+        fetch_meteo(), fetch_fires(), fetch_obs(), return_exceptions=True
+    )
+    meteo = meteo_res if isinstance(meteo_res, dict) else {}
+    fires = fires_res if isinstance(fires_res, list) else []
+    observations = obs_res if isinstance(obs_res, list) else []
+
     if not meteo.get("boundary_layer_height"):
         meteo["boundary_layer_height"] = 550.0
     if meteo.get("precip_24h") is None:
         meteo["precip_24h"] = float(meteo.get("precipitation") or 0.0) * 6.0
-
-    fires = await firms.fetch_active_fires()
-    observations = []
-    import asyncio
-    try:
-        observations = await asyncio.wait_for(
-            IngestionService(db, settings).get_current_observations("anand_vihar"),
-            timeout=2.5
-        )
-    except Exception:
-        observations = []
 
     ws = float(meteo.get("wind_speed") or 2.6)
     blh = float(meteo.get("boundary_layer_height") or 520)
@@ -104,18 +120,35 @@ async def get_disaster_telemetry_mesh(
     settings: Settings = Depends(get_app_settings),
 ):
     """Returns real-time linked status, endpoints, latency, and sample payloads for all 11 mesh data sources."""
+    import asyncio
     wx = _weather(settings)
     firms = _firms(settings)
-    meteo = await wx.fetch_current(28.6139, 77.2090) or {}
-    fires = await firms.fetch_active_fires()
-    import asyncio
-    try:
-        observations = await asyncio.wait_for(
-            IngestionService(db, settings).get_current_observations("anand_vihar"),
-            timeout=2.5
-        )
-    except Exception:
-        observations = []
+    ingestion = IngestionService(db, settings)
+
+    async def fetch_meteo():
+        try:
+            return await asyncio.wait_for(wx.fetch_current(28.6139, 77.2090), timeout=3.0) or {}
+        except Exception:
+            return {}
+
+    async def fetch_fires():
+        try:
+            return await asyncio.wait_for(firms.fetch_active_fires(), timeout=3.0) or []
+        except Exception:
+            return []
+
+    async def fetch_obs():
+        try:
+            return await asyncio.wait_for(ingestion.get_current_observations("anand_vihar"), timeout=3.0) or []
+        except Exception:
+            return []
+
+    meteo_res, fires_res, obs_res = await asyncio.gather(
+        fetch_meteo(), fetch_fires(), fetch_obs(), return_exceptions=True
+    )
+    meteo = meteo_res if isinstance(meteo_res, dict) else {}
+    fires = fires_res if isinstance(fires_res, list) else []
+    observations = obs_res if isinstance(obs_res, list) else []
 
     from app.services.disaster_telemetry import get_telemetry_mesh_status
     return get_telemetry_mesh_status(
